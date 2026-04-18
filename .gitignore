@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+venv/
+.venv/
+env/
+
+# OTP2 graph data — large, regeneratable
+docker/otp2-toronto/graph-data/
+*.gtfs.zip
+*.osm.pbf
+graph.obj
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Env
+.env
+.env.local
