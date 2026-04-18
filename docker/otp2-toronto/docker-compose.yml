@@ -1,0 +1,22 @@
+services:
+  otp:
+    image: opentripplanner/opentripplanner:latest
+    container_name: polyroute-otp
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./graph-data:/var/opentripplanner
+    environment:
+      # Tune for ~8GB host; drop to -Xmx4g if needed
+      - JAVA_TOOL_OPTIONS=-Xmx6g
+    # On first run, build the graph from GTFS + OSM in /var/opentripplanner
+    # On subsequent runs, load the prebuilt graph.obj
+    command: >
+      --build --save --serve /var/opentripplanner
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/otp/routers/default"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 300s  # allow time for graph build

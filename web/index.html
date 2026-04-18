@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>polyroute / Toronto airport planner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;1,9..144,500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #1a1814;
+      --paper: #f4efe6;
+      --paper-warm: #ebe3d3;
+      --accent: #c8442a;     /* UP Express red */
+      --accent-dim: #9a3421;
+      --blue: #1a4d6e;       /* TTC blue */
+      --green: #2d6a4f;      /* GO green */
+      --rule: #1a1814;
+      --muted: #6b6458;
+      --grid: rgba(26, 24, 20, 0.06);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: 17px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 32px 32px;
+      background-position: -1px -1px;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 48px 32px 80px;
+    }
+
+    /* Masthead */
+    header {
+      border-bottom: 2px solid var(--ink);
+      padding-bottom: 18px;
+      margin-bottom: 36px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .wordmark {
+      font-family: 'Fraunces', serif;
+      font-weight: 700;
+      font-size: 38px;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .wordmark em {
+      font-style: italic;
+      font-weight: 500;
+      color: var(--accent);
+    }
+    .tagline {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+    .issue {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+
+    /* Intro */
+    .intro {
+      font-size: 22px;
+      line-height: 1.4;
+      max-width: 680px;
+      margin-bottom: 48px;
+      font-weight: 300;
+    }
+    .intro em { font-style: italic; color: var(--accent); }
+
+    /* Form — presented as an editorial fill-in */
+    .query {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 16px 24px;
+      border-top: 1px solid var(--ink);
+      border-bottom: 1px solid var(--ink);
+      padding: 28px 0;
+      margin-bottom: 32px;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field.wide { grid-column: span 6; }
+    .field.half { grid-column: span 3; }
+    .field.full { grid-column: span 12; }
+
+    label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--muted);
+    }
+
+    select, input[type="time"], input[type="text"] {
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--ink);
+      padding: 4px 0 6px;
+      font-family: 'Fraunces', serif;
+      font-size: 20px;
+      color: var(--ink);
+      outline: none;
+      border-radius: 0;
+    }
+    select:focus, input:focus { border-bottom-color: var(--accent); }
+
+    .checkboxes {
+      grid-column: span 12;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      padding-top: 8px;
+    }
+    .check {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .check input { accent-color: var(--accent); }
+
+    .weights {
+      grid-column: span 12;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      padding-top: 4px;
+    }
+    .weight { display: flex; flex-direction: column; gap: 4px; }
+    .weight input[type="range"] {
+      accent-color: var(--accent);
+      width: 100%;
+    }
+    .weight .value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .submit-row {
+      grid-column: span 12;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 16px;
+      margin-top: 4px;
+    }
+    button {
+      background: var(--ink);
+      color: var(--paper);
+      border: none;
+      padding: 14px 28px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.15s ease;
+    }
+    button:hover { background: var(--accent); }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Results */
+    .results-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .results-head h2 {
+      font-family: 'Fraunces', serif;
+      font-weight: 500;
+      font-style: italic;
+      font-size: 28px;
+      margin: 0;
+    }
+    .results-meta {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+
+    .itin {
+      border-top: 1px solid var(--ink);
+      padding: 24px 0;
+      display: grid;
+      grid-template-columns: 80px 1fr 180px;
+      gap: 24px;
+      align-items: start;
+      animation: fadeIn 0.4s ease both;
+    }
+    .itin:last-of-type { border-bottom: 1px solid var(--ink); }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .rank {
+      font-family: 'Fraunces', serif;
+      font-weight: 700;
+      font-size: 52px;
+      line-height: 0.9;
+      color: var(--accent);
+      font-feature-settings: "tnum";
+    }
+    .rank span {
+      display: block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--ink);
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      margin-top: 6px;
+    }
+
+    .itin-body h3 {
+      font-family: 'Fraunces', serif;
+      font-weight: 500;
+      font-size: 24px;
+      margin: 0 0 8px;
+      line-height: 1.2;
+    }
+    .itin-body .explanation {
+      color: var(--ink);
+      font-size: 16px;
+      line-height: 1.55;
+      margin: 0 0 12px;
+      max-width: 56ch;
+    }
+    .legs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .leg {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 3px 8px;
+      border: 1px solid var(--ink);
+      background: var(--paper-warm);
+    }
+    .leg.ride { background: var(--ink); color: var(--paper); }
+    .leg.train { background: var(--accent); color: var(--paper); border-color: var(--accent); }
+    .leg.subway { background: var(--blue); color: var(--paper); border-color: var(--blue); }
+    .leg.bus { background: var(--green); color: var(--paper); border-color: var(--green); }
+    .leg.walk { background: var(--paper); }
+
+    .stats {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      text-align: right;
+      color: var(--ink);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .stats .big {
+      font-family: 'Fraunces', serif;
+      font-size: 32px;
+      font-weight: 500;
+      line-height: 1;
+      letter-spacing: -0.01em;
+    }
+    .stats .small {
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+
+    .empty {
+      padding: 60px 0;
+      text-align: center;
+      color: var(--muted);
+      font-style: italic;
+      font-size: 18px;
+    }
+
+    .loading {
+      padding: 40px 0;
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--muted);
+    }
+    .loading::after {
+      content: '';
+      display: inline-block;
+      width: 10px; text-align: left;
+      animation: dots 1.2s steps(4, end) infinite;
+    }
+    @keyframes dots {
+      0%, 20% { content: ''; }
+      40% { content: '.'; }
+      60% { content: '..'; }
+      80%, 100% { content: '...'; }
+    }
+
+    footer {
+      margin-top: 80px;
+      padding-top: 20px;
+      border-top: 1px solid var(--ink);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 720px) {
+      .container { padding: 28px 20px 60px; }
+      .wordmark { font-size: 28px; }
+      .intro { font-size: 18px; }
+      .field.wide, .field.half { grid-column: span 12; }
+      .weights { grid-template-columns: repeat(2, 1fr); }
+      .itin { grid-template-columns: 1fr; gap: 12px; }
+      .rank { font-size: 40px; }
+      .stats { text-align: left; flex-direction: row; gap: 20px; align-items: baseline; }
+      .stats .big { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <header>
+      <div>
+        <div class="wordmark">poly<em>route</em></div>
+        <div class="tagline">Mixed-mode journey planner · Toronto / GTA</div>
+      </div>
+      <div class="issue">No. 001 &nbsp;·&nbsp; Pre-α</div>
+    </header>
+
+    <p class="intro">
+      Google Maps gives you <em>all transit</em>, <em>all drive</em>, <em>all Uber</em>.
+      This gives you the combinations it misses — the Uber-to-station hops,
+      the park-and-rides, the routes that save real money at a small time cost.
+      Today: Mississauga / GTA to Pearson.
+    </p>
+
+    <form id="planForm">
+      <div class="query">
+
+        <div class="field wide">
+          <label for="origin">From</label>
+          <select id="origin">
+            <option value="fountainhead" selected>Fountainhead Rd, Mississauga</option>
+            <option value="kipling">Kipling Station</option>
+            <option value="union">Union Station</option>
+          </select>
+        </div>
+
+        <div class="field wide">
+          <label for="destination">To</label>
+          <select id="destination">
+            <option value="yyz" selected>Toronto Pearson (YYZ)</option>
+            <option value="union">Union Station</option>
+            <option value="kipling">Kipling Station</option>
+          </select>
+        </div>
+
+        <div class="field half">
+          <label for="depart">Depart</label>
+          <input type="time" id="depart" value="06:00" />
+        </div>
+
+        <div class="field half">
+          <label for="arriveBy">Arrive by (optional)</label>
+          <input type="time" id="arriveBy" placeholder="--:--" />
+        </div>
+
+        <div class="checkboxes">
+          <label class="check"><input type="checkbox" id="luggage" /> Luggage</label>
+          <label class="check"><input type="checkbox" id="ownBike" /> I have a bike</label>
+          <label class="check"><input type="checkbox" id="ownCar" /> I can drive</label>
+        </div>
+
+        <div class="weights">
+          <div class="weight">
+            <label>Time weight <span class="value" id="timeVal">1.0</span></label>
+            <input type="range" id="timeWeight" min="0" max="3" step="0.1" value="1.0" />
+          </div>
+          <div class="weight">
+            <label>Cost weight <span class="value" id="costVal">1.0</span></label>
+            <input type="range" id="costWeight" min="0" max="3" step="0.1" value="1.0" />
+          </div>
+          <div class="weight">
+            <label>Effort weight <span class="value" id="effortVal">0.5</span></label>
+            <input type="range" id="effortWeight" min="0" max="3" step="0.1" value="0.5" />
+          </div>
+          <div class="weight">
+            <label>Reliability weight <span class="value" id="relVal">1.0</span></label>
+            <input type="range" id="reliabilityWeight" min="0" max="3" step="0.1" value="1.0" />
+          </div>
+        </div>
+
+        <div class="submit-row">
+          <button type="submit" id="submit">Find routes →</button>
+        </div>
+      </div>
+    </form>
+
+    <section>
+      <div class="results-head">
+        <h2>Recommended routes</h2>
+        <div class="results-meta" id="meta">—</div>
+      </div>
+      <div id="results">
+        <div class="empty">Set your origin, destination, and preferences above, then hit <em>Find routes</em>.</div>
+      </div>
+    </section>
+
+    <footer>
+      <div>polyroute · pre-alpha · built by Kirtirajsinh Atodariya</div>
+      <div>Data: mock · Next: <a href="https://github.com/KIRTIRAJ4327/polyroute">OTP2 + GTFS</a></div>
+    </footer>
+
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let PRESETS = {};
+
+    // Live range readouts
+    ['time','cost','effort','reliability'].forEach(k => {
+      const input = $(k + 'Weight');
+      const out = $(k === 'reliability' ? 'relVal' : k + 'Val');
+      input.addEventListener('input', () => out.textContent = Number(input.value).toFixed(1));
+    });
+
+    async function loadPresets() {
+      try {
+        const r = await fetch('/presets');
+        PRESETS = await r.json();
+      } catch (e) {
+        console.warn('could not load presets', e);
+      }
+    }
+
+    function todayAt(hhmm) {
+      const [h, m] = hhmm.split(':').map(Number);
+      const d = new Date();
+      d.setHours(h, m, 0, 0);
+      return d.toISOString();
+    }
+
+    function legClass(mode) {
+      if (mode === 'rideshare' || mode === 'car_own') return 'ride';
+      if (mode === 'train') return 'train';
+      if (mode === 'subway' || mode === 'tram') return 'subway';
+      if (mode === 'bus') return 'bus';
+      return 'walk';
+    }
+
+    function prettyMode(mode) {
+      return {
+        walk: 'walk',
+        bike_own: 'bike',
+        bike_share: 'bike share',
+        car_own: 'drive',
+        rideshare: 'uber/lyft',
+        bus: 'bus',
+        subway: 'subway',
+        train: 'train',
+        tram: 'streetcar',
+      }[mode] || mode;
+    }
+
+    function fmtDuration(min) {
+      if (min < 60) return `${Math.round(min)}m`;
+      const h = Math.floor(min / 60);
+      const r = Math.round(min - h * 60);
+      return r ? `${h}h ${r}m` : `${h}h`;
+    }
+
+    function render(data) {
+      const meta = $('meta');
+      meta.textContent =
+        `${data.candidates_generated} considered · ` +
+        `${data.pareto_optimal} on Pareto frontier`;
+
+      const root = $('results');
+      if (!data.itineraries.length) {
+        root.innerHTML = '<div class="empty">No feasible routes. Try relaxing constraints.</div>';
+        return;
+      }
+
+      root.innerHTML = data.itineraries.map((it, i) => `
+        <article class="itin" style="animation-delay: ${i * 0.06}s">
+          <div class="rank">${String(i+1).padStart(2,'0')}<span>${it.label}</span></div>
+          <div class="itin-body">
+            <h3>${it.summary}</h3>
+            <p class="explanation">${it.explanation}</p>
+            <div class="legs">
+              ${it.legs.map(l => `
+                <span class="leg ${legClass(l.mode)}">
+                  ${prettyMode(l.mode)}${l.route_name ? ' · ' + l.route_name : ''} · ${fmtDuration(l.duration_min)}
+                </span>
+              `).join('')}
+            </div>
+          </div>
+          <div class="stats">
+            <div>
+              <div class="big">${fmtDuration(it.total_duration_min)}</div>
+              <div class="small">total time</div>
+            </div>
+            <div>
+              <div class="big">$${it.total_cost_cad.toFixed(2)}</div>
+              <div class="small">total cost</div>
+            </div>
+          </div>
+        </article>
+      `).join('');
+    }
+
+    $('planForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = $('submit');
+      const root = $('results');
+      btn.disabled = true;
+
+      root.innerHTML = '<div class="loading">Finding routes</div>';
+
+      const originKey = $('origin').value;
+      const destKey = $('destination').value;
+      const origin = PRESETS[originKey] || PRESETS.fountainhead;
+      const destination = PRESETS[destKey] || PRESETS.yyz;
+
+      const depart_at = todayAt($('depart').value);
+      const arrive_by = $('arriveBy').value ? todayAt($('arriveBy').value) : null;
+
+      const payload = {
+        origin, destination, depart_at, arrive_by,
+        has_luggage: $('luggage').checked,
+        has_own_bike: $('ownBike').checked,
+        has_own_car: $('ownCar').checked,
+        time_weight: Number($('timeWeight').value),
+        cost_weight: Number($('costWeight').value),
+        effort_weight: Number($('effortWeight').value),
+        reliability_weight: Number($('reliabilityWeight').value),
+      };
+
+      try {
+        const r = await fetch('/plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = await r.json();
+        render(data);
+      } catch (err) {
+        root.innerHTML = `<div class="empty">Error: ${err.message}</div>`;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // Boot
+    loadPresets();
+  </script>
+</body>
+</html>
