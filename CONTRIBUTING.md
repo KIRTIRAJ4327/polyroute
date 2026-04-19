@@ -52,6 +52,14 @@ Describe:
 3. What you expected — and ideally why
 4. What existing tools return for comparison (Google Maps, Transit app, Citymapper)
 
+## Recordkeeping (SR&ED)
+
+Engineering logs live in `docs/sred/` (see `docs/sred/README.md`).
+Every meaningful technical decision — especially resolutions to
+technological uncertainty — should leave a trace in the monthly entry.
+Commit messages and issue descriptions are the primary evidence; the
+SR&ED logs just aggregate them into a reviewer-ready narrative.
+
 ## Questions
 
 LinkedIn DM or GitHub issue both work. I'll try to respond within a few days.

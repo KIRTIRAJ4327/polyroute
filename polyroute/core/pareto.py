@@ -7,10 +7,10 @@ Two-stage ranking:
 Axes are defined so that LOWER IS BETTER on every axis, which keeps
 the dominance check uniform.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Callable
 
 from .types import Itinerary, JourneyRequest, Mode
@@ -19,6 +19,7 @@ from .types import Itinerary, JourneyRequest, Mode
 # ---------------------------------------------------------------------------
 # Axis extraction
 # ---------------------------------------------------------------------------
+
 
 def _time_axis(it: Itinerary, req: JourneyRequest) -> float:
     """Minutes. For arrive_by queries, what matters is lateness risk, not
@@ -35,8 +36,8 @@ def _effort_axis(it: Itinerary, req: JourneyRequest) -> float:
     """Composite effort score. Walking is the dominant term; transfers
     add a flat penalty; carrying luggage on a bike is disqualifying
     elsewhere, so effort doesn't need to re-penalize it here."""
-    walk_penalty = it.walking_distance_m / 100.0   # 1 point per 100m
-    transfer_penalty = it.num_transfers * 5.0       # 5 points per transfer
+    walk_penalty = it.walking_distance_m / 100.0  # 1 point per 100m
+    transfer_penalty = it.num_transfers * 5.0  # 5 points per transfer
     return walk_penalty + transfer_penalty
 
 
@@ -57,18 +58,17 @@ AXES: dict[str, Callable[[Itinerary, JourneyRequest], float]] = {
 # Hard feasibility
 # ---------------------------------------------------------------------------
 
+
 def is_feasible(it: Itinerary, req: JourneyRequest) -> bool:
     """Hard constraints. An itinerary failing these is discarded before
     scoring, not just penalized."""
     if it.walking_distance_m > req.max_walking_m:
         return False
-    if req.has_luggage and any(
-        l.mode in (Mode.BIKE_OWN, Mode.BIKE_SHARE) for l in it.legs
-    ):
+    if req.has_luggage and any(leg.mode in (Mode.BIKE_OWN, Mode.BIKE_SHARE) for leg in it.legs):
         return False
-    if not req.has_own_bike and any(l.mode == Mode.BIKE_OWN for l in it.legs):
+    if not req.has_own_bike and any(leg.mode == Mode.BIKE_OWN for leg in it.legs):
         return False
-    if not req.has_own_car and any(l.mode == Mode.CAR_OWN for l in it.legs):
+    if not req.has_own_car and any(leg.mode == Mode.CAR_OWN for leg in it.legs):
         return False
     # Arrive-by check: 90% confidence arrival must be before deadline
     if req.arrive_by is not None and it.arrival_by(0.90) > req.arrive_by:
@@ -80,6 +80,7 @@ def is_feasible(it: Itinerary, req: JourneyRequest) -> bool:
 # Pareto filter
 # ---------------------------------------------------------------------------
 
+
 def _dominates(a: tuple[float, ...], b: tuple[float, ...]) -> bool:
     """a dominates b iff a is <= b on every axis AND < on at least one."""
     better_or_equal = all(ai <= bi for ai, bi in zip(a, b))
@@ -87,20 +88,13 @@ def _dominates(a: tuple[float, ...], b: tuple[float, ...]) -> bool:
     return better_or_equal and strictly_better
 
 
-def pareto_front(
-    itineraries: list[Itinerary], req: JourneyRequest
-) -> list[Itinerary]:
+def pareto_front(itineraries: list[Itinerary], req: JourneyRequest) -> list[Itinerary]:
     """Return the non-dominated subset."""
     feasible = [it for it in itineraries if is_feasible(it, req)]
-    vectors = [
-        tuple(axis_fn(it, req) for axis_fn in AXES.values())
-        for it in feasible
-    ]
+    vectors = [tuple(axis_fn(it, req) for axis_fn in AXES.values()) for it in feasible]
     front: list[Itinerary] = []
     for i, it in enumerate(feasible):
-        dominated = any(
-            _dominates(vectors[j], vectors[i]) for j in range(len(feasible)) if j != i
-        )
+        dominated = any(_dominates(vectors[j], vectors[i]) for j in range(len(feasible)) if j != i)
         if not dominated:
             front.append(it)
     return front
@@ -109,6 +103,7 @@ def pareto_front(
 # ---------------------------------------------------------------------------
 # Preference scoring
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class ScoredItinerary:
@@ -128,9 +123,7 @@ def _normalize(values: list[float]) -> list[float]:
     return [(v - lo) / (hi - lo) for v in values]
 
 
-def score_itineraries(
-    itineraries: list[Itinerary], req: JourneyRequest
-) -> list[ScoredItinerary]:
+def score_itineraries(itineraries: list[Itinerary], req: JourneyRequest) -> list[ScoredItinerary]:
     """Score the Pareto front using user preference weights."""
     front = pareto_front(itineraries, req)
     if not front:
@@ -144,9 +137,7 @@ def score_itineraries(
     }
 
     # Compute raw axis values, then normalize each axis independently
-    raw: dict[str, list[float]] = {
-        name: [fn(it, req) for it in front] for name, fn in AXES.items()
-    }
+    raw: dict[str, list[float]] = {name: [fn(it, req) for it in front] for name, fn in AXES.items()}
     normed = {name: _normalize(vals) for name, vals in raw.items()}
 
     scored: list[ScoredItinerary] = []

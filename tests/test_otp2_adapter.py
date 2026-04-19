@@ -4,6 +4,7 @@ These tests do not require a live OTP2 instance — they exercise the pure
 translation from a captured GraphQL response to polyroute domain types.
 Live integration tests live in ``tests/integration/test_otp2_live.py``.
 """
+
 from __future__ import annotations
 
 import json

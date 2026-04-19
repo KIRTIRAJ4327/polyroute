@@ -3,6 +3,7 @@
 These tests assert the math, not the side effects. No OTP2, no LLM.
 Run: python -m pytest tests/ -v
 """
+
 from datetime import datetime, timedelta
 
 import pytest
@@ -30,8 +31,14 @@ KIPLING = Location(lat=43.6366, lon=-79.5358, name="Kipling Station")
 BASE_TIME = datetime(2026, 4, 18, 6, 0, 0)
 
 
-def _make_leg(mode: Mode, start_offset_min: int, duration_min: int,
-              cost: float, distance_m: float, sigma: float = 0.0) -> Leg:
+def _make_leg(
+    mode: Mode,
+    start_offset_min: int,
+    duration_min: int,
+    cost: float,
+    distance_m: float,
+    sigma: float = 0.0,
+) -> Leg:
     start = BASE_TIME + timedelta(minutes=start_offset_min)
     end = start + timedelta(minutes=duration_min)
     return Leg(
@@ -49,6 +56,7 @@ def _make_leg(mode: Mode, start_offset_min: int, duration_min: int,
 # ---------------------------------------------------------------------------
 # Basic type math
 # ---------------------------------------------------------------------------
+
 
 def test_itinerary_totals():
     legs = [
@@ -99,11 +107,14 @@ def test_arrival_by_confidence():
 # Feasibility
 # ---------------------------------------------------------------------------
 
+
 def test_feasibility_luggage_blocks_bike():
     it = Itinerary(legs=[_make_leg(Mode.BIKE_SHARE, 0, 20, 3.25, 5000)])
     req = JourneyRequest(
-        origin=FOUNTAINHEAD, destination=YYZ,
-        departure_time=BASE_TIME, has_luggage=True,
+        origin=FOUNTAINHEAD,
+        destination=YYZ,
+        departure_time=BASE_TIME,
+        has_luggage=True,
     )
     assert not is_feasible(it, req)
 
@@ -111,13 +122,17 @@ def test_feasibility_luggage_blocks_bike():
 def test_feasibility_own_car_required():
     it = Itinerary(legs=[_make_leg(Mode.CAR_OWN, 0, 25, 8.0, 22000)])
     req_no_car = JourneyRequest(
-        origin=FOUNTAINHEAD, destination=YYZ,
-        departure_time=BASE_TIME, has_own_car=False,
+        origin=FOUNTAINHEAD,
+        destination=YYZ,
+        departure_time=BASE_TIME,
+        has_own_car=False,
     )
     assert not is_feasible(it, req_no_car)
     req_with_car = JourneyRequest(
-        origin=FOUNTAINHEAD, destination=YYZ,
-        departure_time=BASE_TIME, has_own_car=True,
+        origin=FOUNTAINHEAD,
+        destination=YYZ,
+        departure_time=BASE_TIME,
+        has_own_car=True,
     )
     assert is_feasible(it, req_with_car)
 
@@ -127,14 +142,16 @@ def test_feasibility_arrive_by_uses_p90():
     it = Itinerary(legs=[_make_leg(Mode.TRAIN, 0, 25, 0.0, 10000, sigma=10.0)])
     # Deadline 35 min out — infeasible at 90% confidence
     req_tight = JourneyRequest(
-        origin=FOUNTAINHEAD, destination=YYZ,
+        origin=FOUNTAINHEAD,
+        destination=YYZ,
         departure_time=BASE_TIME,
         arrive_by=BASE_TIME + timedelta(minutes=35),
     )
     assert not is_feasible(it, req_tight)
     # Deadline 45 min out — feasible
     req_loose = JourneyRequest(
-        origin=FOUNTAINHEAD, destination=YYZ,
+        origin=FOUNTAINHEAD,
+        destination=YYZ,
         departure_time=BASE_TIME,
         arrive_by=BASE_TIME + timedelta(minutes=45),
     )
@@ -145,14 +162,14 @@ def test_feasibility_arrive_by_uses_p90():
 # Pareto filter
 # ---------------------------------------------------------------------------
 
+
 def test_pareto_dominated_removed():
     """A strictly worse itinerary (longer AND more expensive) is dropped."""
     fast_expensive = Itinerary(legs=[_make_leg(Mode.RIDESHARE, 0, 25, 65.0, 22000)])
     slow_cheap = Itinerary(legs=[_make_leg(Mode.BUS, 0, 75, 3.35, 22000)])
     dominated = Itinerary(legs=[_make_leg(Mode.BUS, 0, 90, 5.00, 22000)])
 
-    req = JourneyRequest(origin=FOUNTAINHEAD, destination=YYZ,
-                         departure_time=BASE_TIME)
+    req = JourneyRequest(origin=FOUNTAINHEAD, destination=YYZ, departure_time=BASE_TIME)
     front = pareto_front([fast_expensive, slow_cheap, dominated], req)
     assert fast_expensive in front
     assert slow_cheap in front
@@ -162,14 +179,15 @@ def test_pareto_dominated_removed():
 def test_scoring_labels_extremes():
     fastest = Itinerary(legs=[_make_leg(Mode.RIDESHARE, 0, 25, 65.0, 22000)])
     cheapest = Itinerary(legs=[_make_leg(Mode.BUS, 0, 75, 3.35, 22000)])
-    balanced = Itinerary(legs=[
-        _make_leg(Mode.WALK, 0, 5, 0.0, 300),
-        _make_leg(Mode.SUBWAY, 5, 30, 3.35, 12000),
-        _make_leg(Mode.TRAIN, 35, 15, 12.35, 10000),
-    ])
+    balanced = Itinerary(
+        legs=[
+            _make_leg(Mode.WALK, 0, 5, 0.0, 300),
+            _make_leg(Mode.SUBWAY, 5, 30, 3.35, 12000),
+            _make_leg(Mode.TRAIN, 35, 15, 12.35, 10000),
+        ]
+    )
 
-    req = JourneyRequest(origin=FOUNTAINHEAD, destination=YYZ,
-                         departure_time=BASE_TIME)
+    req = JourneyRequest(origin=FOUNTAINHEAD, destination=YYZ, departure_time=BASE_TIME)
     scored = score_itineraries([fastest, cheapest, balanced], req)
     labels = {s.label for s in scored}
     assert "Fastest" in labels

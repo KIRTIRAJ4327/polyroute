@@ -10,9 +10,10 @@ Endpoints:
 
 Keep this thin. All business logic lives in polyroute.core and adapters.
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -29,7 +30,7 @@ from ..adapters.mock_toronto import (
     UNION_STN,
     generate_candidates,
 )
-from ..llm import explain, one_line_summary, summarize_legs
+from ..llm import explain, summarize_legs
 
 
 app = FastAPI(
@@ -40,7 +41,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # tighten for deployment
+    allow_origins=["*"],  # tighten for deployment
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -62,6 +63,7 @@ def index() -> FileResponse:
 # Request / response schemas
 # ---------------------------------------------------------------------------
 
+
 class LocationIn(BaseModel):
     lat: float
     lon: float
@@ -72,10 +74,12 @@ class PlanRequest(BaseModel):
     origin: LocationIn
     destination: LocationIn
     depart_at: Optional[str] = Field(
-        None, description="ISO datetime; defaults to now",
+        None,
+        description="ISO datetime; defaults to now",
     )
     arrive_by: Optional[str] = Field(
-        None, description="ISO datetime — hard deadline (e.g. flight time)",
+        None,
+        description="ISO datetime — hard deadline (e.g. flight time)",
     )
     has_luggage: bool = False
     has_own_bike: bool = False
@@ -121,6 +125,7 @@ class PlanResponse(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "version": "0.0.1"}
@@ -129,6 +134,7 @@ def health() -> dict:
 @app.get("/presets")
 def presets() -> dict:
     """Named locations for the demo. Makes the UI one-click."""
+
     def _to_dict(loc: Location) -> dict:
         return {"lat": loc.lat, "lon": loc.lon, "name": loc.name}
 
@@ -148,11 +154,7 @@ def plan(req_in: PlanRequest) -> PlanResponse:
         if req_in.depart_at
         else datetime.now().replace(second=0, microsecond=0)
     )
-    arrive_by = (
-        datetime.fromisoformat(req_in.arrive_by)
-        if req_in.arrive_by
-        else None
-    )
+    arrive_by = datetime.fromisoformat(req_in.arrive_by) if req_in.arrive_by else None
 
     req = JourneyRequest(
         origin=Location(
@@ -182,31 +184,34 @@ def plan(req_in: PlanRequest) -> PlanResponse:
     itineraries: list[ItineraryOut] = []
     for s in scored:
         it = s.itinerary
-        itineraries.append(ItineraryOut(
-            label=s.label,
-            summary=summarize_legs(it),
-            explanation=explain(s, scored),
-            total_duration_min=round(it.total_duration_min, 1),
-            total_cost_cad=round(it.total_cost_cad, 2),
-            num_transfers=it.num_transfers,
-            walking_distance_m=round(it.walking_distance_m, 0),
-            reliability_sigma_min=round(it.reliability_sigma_min, 1),
-            legs=[
-                LegOut(
-                    mode=leg.mode.value,
-                    origin=leg.origin.name or f"{leg.origin.lat:.4f},{leg.origin.lon:.4f}",
-                    destination=leg.destination.name or f"{leg.destination.lat:.4f},{leg.destination.lon:.4f}",
-                    start_time=leg.start_time.isoformat(),
-                    end_time=leg.end_time.isoformat(),
-                    duration_min=round(leg.duration_min, 1),
-                    distance_m=round(leg.distance_m, 0),
-                    cost_cad=round(leg.cost_cad, 2),
-                    route_name=leg.route_name,
-                    operator=leg.operator,
-                )
-                for leg in it.legs
-            ],
-        ))
+        itineraries.append(
+            ItineraryOut(
+                label=s.label,
+                summary=summarize_legs(it),
+                explanation=explain(s, scored),
+                total_duration_min=round(it.total_duration_min, 1),
+                total_cost_cad=round(it.total_cost_cad, 2),
+                num_transfers=it.num_transfers,
+                walking_distance_m=round(it.walking_distance_m, 0),
+                reliability_sigma_min=round(it.reliability_sigma_min, 1),
+                legs=[
+                    LegOut(
+                        mode=leg.mode.value,
+                        origin=leg.origin.name or f"{leg.origin.lat:.4f},{leg.origin.lon:.4f}",
+                        destination=leg.destination.name
+                        or f"{leg.destination.lat:.4f},{leg.destination.lon:.4f}",
+                        start_time=leg.start_time.isoformat(),
+                        end_time=leg.end_time.isoformat(),
+                        duration_min=round(leg.duration_min, 1),
+                        distance_m=round(leg.distance_m, 0),
+                        cost_cad=round(leg.cost_cad, 2),
+                        route_name=leg.route_name,
+                        operator=leg.operator,
+                    )
+                    for leg in it.legs
+                ],
+            )
+        )
 
     return PlanResponse(
         candidates_generated=len(candidates),

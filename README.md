@@ -1,5 +1,7 @@
 # polyroute
 
+[![CI](https://github.com/KIRTIRAJ4327/polyroute/actions/workflows/ci.yml/badge.svg)](https://github.com/KIRTIRAJ4327/polyroute/actions/workflows/ci.yml)
+
 **Agentic multi-modal journey planning that actually mixes modes.**
 
 Most routing apps silo transit, driving, rideshare, and bikes into separate answers. Polyroute finds the interesting combinations they miss — the Uber-to-transit-station hops, the park-and-ride options, the bike-to-GO-station routes — and explains the tradeoffs in plain language.
@@ -74,12 +76,14 @@ Then point the OTP2 adapter at `http://localhost:8080`.
 - [x] Core types, Pareto filter, rule-based explainer
 - [x] Mock Toronto airport demo
 - [x] OTP2 Docker setup for GTA
-- [ ] Real OTP2 adapter
-- [ ] Rideshare heuristic adapter (published per-km + surge model)
-- [ ] GBFS adapter (Bike Share Toronto)
-- [ ] LangGraph agent for multi-step reasoning
-- [ ] LLM-backed explainer (Claude via Anthropic / Azure AI Foundry)
-- [ ] FastAPI server + minimal web UI
+- [x] FastAPI server + minimal web UI
+- [x] OTP2 adapter scaffold + fixture-based unit tests (#2, #7)
+- [ ] OTP2 adapter integration-tested against a live container (#2)
+- [ ] Rideshare heuristic adapter (published per-km + surge model) (#3)
+- [ ] GBFS adapter (Bike Share Toronto) (#4)
+- [ ] Composition strategy module — mixed-mode candidates at transit anchors (#5)
+- [ ] LLM-backed explainer (Claude via Anthropic / Azure AI Foundry) (#6)
+- [ ] LangGraph agent for multi-step reasoning (v0.2)
 - [ ] v0.1.0 on PyPI
 
 ## Scope

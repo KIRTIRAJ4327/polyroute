@@ -1,4 +1,5 @@
 """Core types and scoring. Pure — no I/O."""
+
 from .types import (
     Leg,
     Location,

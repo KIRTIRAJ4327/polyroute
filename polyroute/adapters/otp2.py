@@ -12,6 +12,7 @@ WIP: the response mapper is covered by fixture-based unit tests. Live
 integration tests live in ``tests/integration/test_otp2_live.py`` and
 require a running OTP2 container (see ``docker/otp2-toronto/``).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
