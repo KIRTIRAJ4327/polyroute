@@ -13,6 +13,8 @@ Keep this thin. All business logic lives in polyroute.core and adapters.
 
 from __future__ import annotations
 
+import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -30,7 +32,16 @@ from ..adapters.mock_toronto import (
     KIPLING_STN,
     UNION_STN,
 )
-from ..llm import explain, summarize_legs
+from ..llm import (
+    LLMExplainer,
+    anthropic_generate,
+    azure_foundry_generate,
+    explain,
+    openai_generate,
+    summarize_legs,
+)
+
+log = logging.getLogger(__name__)
 
 
 app = FastAPI(
@@ -60,6 +71,63 @@ def set_planner(planner: Planner) -> None:
 
 def get_planner() -> Planner:
     return _planner
+
+
+def default_explainer() -> Optional[LLMExplainer]:
+    """Build an LLM explainer from env vars, or return None.
+
+    Env vars:
+    - ``POLYROUTE_LLM_PROVIDER`` — ``anthropic`` | ``openai`` | ``azure``.
+      If unset or unknown, the rule-based explainer is used.
+    - ``POLYROUTE_LLM_MODEL`` — model id / deployment name (optional,
+      provider-specific default applies).
+    - Provider-specific keys: ``ANTHROPIC_API_KEY``, ``OPENAI_API_KEY``,
+      ``AZURE_OPENAI_API_KEY`` + ``AZURE_OPENAI_ENDPOINT``.
+
+    Selection here is intentionally permissive — if the SDK is missing
+    or a key is absent, the runtime call falls back to the rule-based
+    explainer via ``LLMExplainer.fallback_on_error=True``. This keeps
+    zero-config deployments working.
+    """
+    provider = (os.getenv("POLYROUTE_LLM_PROVIDER") or "").strip().lower()
+    if not provider:
+        return None
+    model = os.getenv("POLYROUTE_LLM_MODEL") or ""
+    try:
+        if provider == "anthropic":
+            gen = anthropic_generate(model=model or "claude-sonnet-4-6")
+        elif provider == "openai":
+            gen = openai_generate(model=model or "gpt-4o-mini")
+        elif provider == "azure":
+            deployment = model or os.getenv("AZURE_OPENAI_DEPLOYMENT") or ""
+            if not deployment:
+                log.warning(
+                    "POLYROUTE_LLM_PROVIDER=azure needs POLYROUTE_LLM_MODEL "
+                    "or AZURE_OPENAI_DEPLOYMENT; falling back to rule-based"
+                )
+                return None
+            gen = azure_foundry_generate(deployment=deployment)
+        else:
+            log.warning("unknown POLYROUTE_LLM_PROVIDER=%r; using rule-based", provider)
+            return None
+    except Exception as exc:  # pragma: no cover — defensive
+        log.warning("LLM explainer setup failed (%s); using rule-based", exc)
+        return None
+    return LLMExplainer(generate=gen)
+
+
+# Module-level explainer. None means "use rule-based".
+# Swap via ``set_explainer(...)`` in tests.
+_explainer: Optional[LLMExplainer] = default_explainer()
+
+
+def set_explainer(explainer: Optional[LLMExplainer]) -> None:
+    global _explainer
+    _explainer = explainer
+
+
+def get_explainer() -> Optional[LLMExplainer]:
+    return _explainer
 
 
 # Serve the web UI at /
@@ -122,6 +190,10 @@ class ItineraryOut(BaseModel):
     label: str
     summary: str
     explanation: str
+    explanation_source: str = Field(
+        "rule-based",
+        description="'llm' | 'rule-based-fallback' | 'rule-based'",
+    )
     total_duration_min: float
     total_cost_cad: float
     num_transfers: int
@@ -201,15 +273,24 @@ def plan(req_in: PlanRequest) -> PlanResponse:
     candidates = planner.plan(req)
     scored = score_itineraries(candidates, req)
     sources = _describe_sources(planner, len(candidates))
+    llm = get_explainer()
 
     itineraries: list[ItineraryOut] = []
     for s in scored:
         it = s.itinerary
+        if llm is not None:
+            er = llm.explain(s, scored)
+            explanation_text = er.text
+            explanation_source = er.source
+        else:
+            explanation_text = explain(s, scored)
+            explanation_source = "rule-based"
         itineraries.append(
             ItineraryOut(
                 label=s.label,
                 summary=summarize_legs(it),
-                explanation=explain(s, scored),
+                explanation=explanation_text,
+                explanation_source=explanation_source,
                 total_duration_min=round(it.total_duration_min, 1),
                 total_cost_cad=round(it.total_cost_cad, 2),
                 num_transfers=it.num_transfers,

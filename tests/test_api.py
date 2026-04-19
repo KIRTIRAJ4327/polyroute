@@ -19,7 +19,8 @@ from polyroute.core.types import Itinerary, JourneyRequest, Leg, Location, Mode
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
-from polyroute.api.server import app, set_planner  # noqa: E402
+from polyroute.api.server import app, set_explainer, set_planner  # noqa: E402
+from polyroute.llm import LLMExplainer  # noqa: E402
 
 
 FOUNTAINHEAD = Location(43.6011, -79.5463, name="Fountainhead")
@@ -72,6 +73,9 @@ def _reset_planner():
     # Test body may override via ``set_planner`` — we don't assert a default
     # (the module-level planner at import time depends on env vars).
     yield
+    # Reset explainer to None (rule-based) after each test so LLM-injecting
+    # tests don't leak into plain /plan tests.
+    set_explainer(None)
 
 
 # ---------------------------------------------------------------------------
@@ -171,3 +175,74 @@ def test_plan_honors_arrive_by(client: TestClient):
     assert r.status_code == 200
     body = r.json()
     assert body["pareto_optimal"] == 0
+
+
+# ---------------------------------------------------------------------------
+# LLM explainer wiring
+# ---------------------------------------------------------------------------
+
+
+def test_plan_uses_rule_based_when_no_explainer(client: TestClient):
+    set_planner(Planner(rideshare=FakeRideshare(), anchors=[], fallback=None))
+    set_explainer(None)
+    r = client.post("/plan", json=_plan_payload())
+    body = r.json()
+    assert body["itineraries"][0]["explanation_source"] == "rule-based"
+
+
+def test_plan_uses_llm_when_explainer_wired(client: TestClient):
+    set_planner(Planner(rideshare=FakeRideshare(), anchors=[], fallback=None))
+    set_explainer(LLMExplainer(generate=lambda _prompt: "LLM-generated tradeoff text."))
+    r = client.post("/plan", json=_plan_payload())
+    body = r.json()
+    first = body["itineraries"][0]
+    assert first["explanation_source"] == "llm"
+    assert first["explanation"] == "LLM-generated tradeoff text."
+
+
+def test_plan_falls_back_when_llm_errors(client: TestClient):
+    set_planner(Planner(rideshare=FakeRideshare(), anchors=[], fallback=None))
+
+    def _broken(_prompt: str) -> str:
+        raise RuntimeError("provider down")
+
+    set_explainer(LLMExplainer(generate=_broken))
+    r = client.post("/plan", json=_plan_payload())
+    body = r.json()
+    first = body["itineraries"][0]
+    assert first["explanation_source"] == "rule-based-fallback"
+    # Rule-based text should appear — not empty
+    assert first["explanation"]
+
+
+def test_default_explainer_none_without_env(monkeypatch):
+    monkeypatch.delenv("POLYROUTE_LLM_PROVIDER", raising=False)
+    from polyroute.api.server import default_explainer
+
+    assert default_explainer() is None
+
+
+def test_default_explainer_anthropic(monkeypatch):
+    monkeypatch.setenv("POLYROUTE_LLM_PROVIDER", "anthropic")
+    from polyroute.api.server import default_explainer
+
+    ex = default_explainer()
+    assert ex is not None
+    assert isinstance(ex, LLMExplainer)
+
+
+def test_default_explainer_unknown_provider_returns_none(monkeypatch):
+    monkeypatch.setenv("POLYROUTE_LLM_PROVIDER", "bogus-provider")
+    from polyroute.api.server import default_explainer
+
+    assert default_explainer() is None
+
+
+def test_default_explainer_azure_needs_deployment(monkeypatch):
+    monkeypatch.setenv("POLYROUTE_LLM_PROVIDER", "azure")
+    monkeypatch.delenv("POLYROUTE_LLM_MODEL", raising=False)
+    monkeypatch.delenv("AZURE_OPENAI_DEPLOYMENT", raising=False)
+    from polyroute.api.server import default_explainer
+
+    # Without a deployment name, azure path refuses rather than misbehaving
+    assert default_explainer() is None
