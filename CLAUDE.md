@@ -140,7 +140,8 @@ polyroute/
 │   │   └── rideshare_heuristic.py  # Clearly-labeled rate-card + surge estimator (no live prices)
 │   ├── llm/
 │   │   ├── __init__.py
-│   │   └── explainer.py            # Rule-based tradeoff explanations
+│   │   ├── explainer.py            # Rule-based tradeoff explanations
+│   │   └── llm_explainer.py        # Model-agnostic LLM explainer (Anthropic / OpenAI / Azure AI Foundry)
 │   └── api/
 │       ├── __init__.py
 │       └── server.py               # FastAPI: /health /presets /plan
@@ -150,6 +151,7 @@ polyroute/
 │   ├── test_otp2_adapter.py        # fixture-based unit tests for OTP2 mapper
 │   ├── test_rideshare_heuristic.py # rate-card, surge, determinism
 │   ├── test_compose.py             # composition strategy with mocked sources
+│   ├── test_llm_explainer.py       # fake-generate LLM explainer, fallback, truncation
 │   ├── fixtures/otp2_plan_response.json
 │   └── integration/
 │       └── test_otp2_live.py       # marked `integration`; skips if OTP2 unreachable
@@ -186,9 +188,10 @@ polyroute/
 - **OTP2 adapter** (`polyroute/adapters/otp2.py`) — Index GraphQL client + mode-map + sigma priors. Unit-tested against a captured fixture; live-tested via opt-in integration suite.
 - **Rideshare heuristic** (`polyroute/adapters/rideshare_heuristic.py`) — rate-card + surge table for UberX-Toronto, snapshot-dated, always labeled "Estimate only — not a live price" per CLAUDE.md §3.2.
 - **Composition strategy** (`polyroute/core/compose.py` + `anchors_gta.json`) — `compose_first_mile(req, transit, rideshare, anchors)` stitches rideshare-to-anchor onto transit-to-destination itineraries. Pure; takes `Protocol` sources so it does not depend on concrete adapters.
+- **LLM explainer** (`polyroute/llm/llm_explainer.py`) — provider-agnostic `LLMExplainer` that takes a `Generate = Callable[[str], str]`. Concrete adapters for Anthropic, OpenAI, and Azure AI Foundry live in the same module with lazy SDK imports. Falls back to the rule-based explainer on any provider error and stamps `ExplainResult.source` so the UI can show which path produced the text. Install with `pip install -e ".[llm]"`.
 
 ### What's still stubbed
-- **Rule-based explainer** works but is rigid. LLM explainer interface exists via the same `explain()` signature but is not wired to a model yet.
+- **Rule-based explainer** remains the zero-dep default; LLM explainer is now wired but not yet hooked into `polyroute/api/server.py` — caller still gets rule-based until we flip that over.
 - **LangGraph agent wrapper** folder exists but is empty. Intentionally deferred.
 - **GBFS adapter** for Bike Share Toronto not yet written.
 - **Composition → API wiring** — `core/compose.py` exists but `polyroute/api/server.py` still calls `mock_toronto` only. Wire-up pending once the OTP2 + rideshare adapters are both exercised end-to-end against a live container.
