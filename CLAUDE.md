@@ -132,6 +132,7 @@ polyroute/
 │   │   ├── types.py                # Leg, Itinerary, JourneyRequest, Location, Mode
 │   │   ├── pareto.py               # pareto_front, score_itineraries, is_feasible
 │   │   ├── compose.py              # first-mile rideshare → transit-anchor composition
+│   │   ├── planner.py              # fan-out orchestrator + env-driven default_planner()
 │   │   └── anchors_gta.json        # Kipling, Islington, Bloor-Yonge, Dundas West, Union, ...
 │   ├── adapters/
 │   │   ├── __init__.py
@@ -154,6 +155,8 @@ polyroute/
 │   ├── test_compose.py             # composition strategy with mocked sources
 │   ├── test_llm_explainer.py       # fake-generate LLM explainer, fallback, truncation
 │   ├── test_gbfs_adapter.py        # GBFS merge, nearest-station, fare, walk→bike→walk
+│   ├── test_planner.py             # fan-out, graceful degradation, env-var wiring
+│   ├── test_api.py                 # FastAPI /plan end-to-end with injected planner
 │   ├── fixtures/otp2_plan_response.json
 │   ├── fixtures/gbfs_station_information.json
 │   ├── fixtures/gbfs_station_status.json
@@ -183,9 +186,9 @@ polyroute/
 ```
 
 ### What's working end-to-end
-- `pytest` passes (core + otp2 mapper + rideshare + composition); integration suite opt-in
+- `pytest` passes (73 unit tests covering core, OTP2 mapper, rideshare, composition, GBFS, LLM explainer, Planner, API); 5 integration tests opt-in
 - `python examples/toronto_airport.py` → prints 5 candidates, 4 on Pareto frontier, with labels and explanations
-- `uvicorn polyroute.api.server:app` → serves web UI at `/` and JSON API at `/plan`
+- `uvicorn polyroute.api.server:app` → serves web UI at `/`; `POST /plan` routes through `Planner.default_planner()` and returns `candidates_generated`, `pareto_optimal`, ranked `itineraries`, and a `sources` provenance list
 - `--cheap` / `--fast` / `--luggage` / `--arrive-by` flags all correctly shift ranking
 - CI runs pytest + ruff on every push (Python 3.10 / 3.11 / 3.12)
 
@@ -195,12 +198,14 @@ polyroute/
 - **Composition strategy** (`polyroute/core/compose.py` + `anchors_gta.json`) — `compose_first_mile(req, transit, rideshare, anchors)` stitches rideshare-to-anchor onto transit-to-destination itineraries. Pure; takes `Protocol` sources so it does not depend on concrete adapters.
 - **LLM explainer** (`polyroute/llm/llm_explainer.py`) — provider-agnostic `LLMExplainer` that takes a `Generate = Callable[[str], str]`. Concrete adapters for Anthropic, OpenAI, and Azure AI Foundry live in the same module with lazy SDK imports. Falls back to the rule-based explainer on any provider error and stamps `ExplainResult.source` so the UI can show which path produced the text. Install with `pip install -e ".[llm]"`.
 - **GBFS adapter** (`polyroute/adapters/gbfs.py`) — reads Bike Share Toronto's GBFS v2 feed (configurable discovery URL) and builds a walk → bike → walk itinerary using the nearest station with bikes (origin side) and the nearest with free docks (destination side). Fare model is $1 unlock + $0.12/min capped at the day-pass price; revalidate quarterly. Unit tests run on captured fixtures; live tests in `tests/integration/test_gbfs_live.py` skip cleanly when the feed is unreachable.
+- **Planner orchestrator** (`polyroute/core/planner.py`) — fan-out seam. Takes optional `transit`, `rideshare`, `bike_share`, `fallback` sources (by `Protocol` shape, not concrete adapter), plus anchors + `ComposeOptions`. `plan(req)` runs each live adapter inside a `_safe()` try/except so one broken adapter never takes the call down, and layers composed rideshare→anchor→transit candidates on top when both transit and rideshare are wired. Fallback semantic: `mock_toronto` stands in for the transit pathway only — it fires when no transit itineraries were produced (either `transit=None` or the wired source raised/returned `[]`). Rideshare + bike-share run independently of the fallback. `default_planner()` reads `POLYROUTE_OTP2_URL`, `POLYROUTE_GBFS_URL`, and `POLYROUTE_DISABLE_FALLBACK` so a zero-config instance works for the demo and production flips `POLYROUTE_DISABLE_FALLBACK=1` to prevent mock data from masquerading as live.
+- **API wiring** — `polyroute/api/server.py` now holds a module-level `_planner: Planner = default_planner()` (swap via `set_planner()` for tests and custom embeds) and `/plan` calls `planner.plan(req)` instead of `mock_toronto.generate_candidates` directly. `PlanResponse` gained a `sources: list[str]` field — reports which adapters were wired (`transit`, `rideshare`, `bike_share`, `compose_first_mile`) plus `mock_fallback` when the fallback pathway actually fires (no transit wired + fallback present + candidates produced). `tests/test_api.py` exercises the full stack through FastAPI's `TestClient` with injected fakes. `tests/test_planner.py` covers fan-out, graceful degradation, and env-var wiring.
 
 ### What's still stubbed
 - **Rule-based explainer** remains the zero-dep default; LLM explainer is now wired but not yet hooked into `polyroute/api/server.py` — caller still gets rule-based until we flip that over.
 - **LangGraph agent wrapper** folder exists but is empty. Intentionally deferred.
-- **Composition → API wiring** — `core/compose.py` exists but `polyroute/api/server.py` still calls `mock_toronto` only. Wire-up pending once the OTP2 + rideshare adapters are both exercised end-to-end against a live container.
-- **GBFS → composition wiring** — the adapter works standalone; hooking it into the candidate fan-out (and optionally into `compose.py` for bike-share-first-mile patterns) is the next composition extension.
+- **GBFS → composition wiring** — the adapter now participates in `Planner` fan-out as a direct candidate source, but is not yet used in `core/compose.py` for bike-share-first-mile patterns. That's the next composition extension.
+- **Per-candidate provenance** — `PlanResponse.sources` currently describes wiring (+ fallback-fired heuristic), not which adapter produced each specific candidate. A `PlannerResult` diagnostic struct is the clean fix when a consumer actually needs this.
 
 ---
 
