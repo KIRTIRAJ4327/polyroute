@@ -23,12 +23,12 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from ..core import JourneyRequest, Location, score_itineraries
+from ..core.planner import Planner, default_planner
 from ..adapters.mock_toronto import (
     FOUNTAINHEAD,
     YYZ,
     KIPLING_STN,
     UNION_STN,
-    generate_candidates,
 )
 from ..llm import explain, summarize_legs
 
@@ -45,6 +45,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Module-level planner. Built once from env vars at import time.
+# Swap via ``set_planner(...)`` in tests to inject fakes.
+_planner: Planner = default_planner()
+
+
+def set_planner(planner: Planner) -> None:
+    """Override the module planner (useful for tests and custom embeds)."""
+    global _planner
+    _planner = planner
+
+
+def get_planner() -> Planner:
+    return _planner
 
 
 # Serve the web UI at /
@@ -119,6 +134,10 @@ class PlanResponse(BaseModel):
     candidates_generated: int
     pareto_optimal: int
     itineraries: list[ItineraryOut]
+    sources: list[str] = Field(
+        default_factory=list,
+        description="Which adapters contributed candidates for this query.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -178,8 +197,10 @@ def plan(req_in: PlanRequest) -> PlanResponse:
         reliability_weight=req_in.reliability_weight,
     )
 
-    candidates = generate_candidates(req)
+    planner = get_planner()
+    candidates = planner.plan(req)
     scored = score_itineraries(candidates, req)
+    sources = _describe_sources(planner, len(candidates))
 
     itineraries: list[ItineraryOut] = []
     for s in scored:
@@ -217,4 +238,28 @@ def plan(req_in: PlanRequest) -> PlanResponse:
         candidates_generated=len(candidates),
         pareto_optimal=len(scored),
         itineraries=itineraries,
+        sources=sources,
     )
+
+
+def _describe_sources(planner: Planner, candidate_count: int) -> list[str]:
+    """Report which adapters were wired in. Useful for UI provenance badges.
+
+    Note: this describes wiring, not which adapter *actually* produced
+    each candidate. A planner-level diagnostic struct can come later if
+    a consumer needs per-candidate provenance.
+    """
+    sources: list[str] = []
+    if planner.transit is not None:
+        sources.append("transit")
+    if planner.rideshare is not None:
+        sources.append("rideshare")
+    if planner.bike_share is not None:
+        sources.append("bike_share")
+    if planner.transit is not None and planner.rideshare is not None:
+        sources.append("compose_first_mile")
+    # Fallback fires when no transit pathway is wired (Planner semantic
+    # in core/planner.py). Surface that so provenance matches reality.
+    if planner.transit is None and planner.fallback is not None and candidate_count > 0:
+        sources.append("mock_fallback")
+    return sources
