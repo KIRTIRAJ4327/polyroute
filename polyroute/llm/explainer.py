@@ -5,6 +5,7 @@ dependencies — it's good enough for the MVP and for interviews. An
 LLM-backed explainer (Claude / GPT / Gemini / Azure AI Foundry) will
 plug in here via the same `explain()` interface once we wire it up.
 """
+
 from __future__ import annotations
 
 from ..core.types import Itinerary, Mode
@@ -37,7 +38,7 @@ def _fmt_time(m: float) -> str:
 
 def summarize_legs(it: Itinerary) -> str:
     """Condensed itinerary description: 'Uber → subway → UP Express'."""
-    non_walk = [l for l in it.legs if l.mode != Mode.WALK]
+    non_walk = [leg for leg in it.legs if leg.mode != Mode.WALK]
     if not non_walk:
         return "Walk"
     parts = []
@@ -65,8 +66,7 @@ def explain(s: ScoredItinerary, others: list[ScoredItinerary]) -> str:
     notes: list[str] = []
 
     # Compare to the cheapest alternative
-    cheaper = [o for o in others if o is not s and
-               o.axis_values["cost"] < s.axis_values["cost"]]
+    cheaper = [o for o in others if o is not s and o.axis_values["cost"] < s.axis_values["cost"]]
     if cheaper:
         best_cheap = min(cheaper, key=lambda o: o.axis_values["cost"])
         save = s.axis_values["cost"] - best_cheap.axis_values["cost"]
@@ -92,16 +92,11 @@ def explain(s: ScoredItinerary, others: list[ScoredItinerary]) -> str:
 
     # Transfer warning
     if it.num_transfers >= 2:
-        notes.append(
-            f"{it.num_transfers} transfers — tight connections if anything "
-            f"runs late."
-        )
+        notes.append(f"{it.num_transfers} transfers — tight connections if anything runs late.")
 
     # Walking note
     if it.walking_distance_m > 800:
-        notes.append(
-            f"About {int(it.walking_distance_m)}m of walking total."
-        )
+        notes.append(f"About {int(it.walking_distance_m)}m of walking total.")
 
     if not notes:
         notes.append("Straightforward option with no major caveats.")

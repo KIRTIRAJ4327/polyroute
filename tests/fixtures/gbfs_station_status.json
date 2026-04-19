@@ -1,0 +1,41 @@
+{
+  "last_updated": 1744900000,
+  "ttl": 60,
+  "version": "2.3",
+  "data": {
+    "stations": [
+      {
+        "station_id": "7001",
+        "num_bikes_available": 5,
+        "num_docks_available": 26,
+        "is_installed": 1,
+        "is_renting": 1,
+        "is_returning": 1
+      },
+      {
+        "station_id": "7002",
+        "num_bikes_available": 0,
+        "num_docks_available": 35,
+        "is_installed": 1,
+        "is_renting": 1,
+        "is_returning": 1
+      },
+      {
+        "station_id": "7003",
+        "num_bikes_available": 12,
+        "num_docks_available": 15,
+        "is_installed": 1,
+        "is_renting": 1,
+        "is_returning": 1
+      },
+      {
+        "station_id": "7004",
+        "num_bikes_available": 0,
+        "num_docks_available": 0,
+        "is_installed": 0,
+        "is_renting": 0,
+        "is_returning": 0
+      }
+    ]
+  }
+}

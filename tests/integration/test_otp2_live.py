@@ -9,6 +9,7 @@ Run them with::
 
 If OTP2 isn't reachable the entire module skips with a clear reason.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta

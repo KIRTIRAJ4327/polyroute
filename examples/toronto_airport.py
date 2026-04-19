@@ -10,6 +10,7 @@ ranked, explained, Pareto-filtered results before OTP2 is running.
 Once OTP2 and real adapters are wired in, swap the import in
 `generate_candidates` and this script keeps working unchanged.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -22,16 +23,13 @@ from polyroute.llm import explain, one_line_summary
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Polyroute Toronto airport demo")
-    p.add_argument("--luggage", action="store_true",
-                   help="Carrying luggage — no bike options")
-    p.add_argument("--cheap", action="store_true",
-                   help="Prioritize cost over time")
-    p.add_argument("--fast", action="store_true",
-                   help="Prioritize time over cost")
-    p.add_argument("--arrive-by", type=str, default=None,
-                   help="Flight-style arrival deadline, e.g. '07:45'")
-    p.add_argument("--depart", type=str, default="06:00",
-                   help="Departure time, e.g. '06:00'")
+    p.add_argument("--luggage", action="store_true", help="Carrying luggage — no bike options")
+    p.add_argument("--cheap", action="store_true", help="Prioritize cost over time")
+    p.add_argument("--fast", action="store_true", help="Prioritize time over cost")
+    p.add_argument(
+        "--arrive-by", type=str, default=None, help="Flight-style arrival deadline, e.g. '07:45'"
+    )
+    p.add_argument("--depart", type=str, default="06:00", help="Departure time, e.g. '06:00'")
     return p.parse_args()
 
 
@@ -79,8 +77,7 @@ def main() -> None:
         print("  Carrying luggage")
     print(f"  Preferences: time×{time_w}  cost×{cost_w}")
     print()
-    print(f"  Found {len(candidates)} candidates, "
-          f"{len(scored)} on the Pareto frontier.")
+    print(f"  Found {len(candidates)} candidates, {len(scored)} on the Pareto frontier.")
     print()
 
     for i, s in enumerate(scored, 1):

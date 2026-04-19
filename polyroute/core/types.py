@@ -3,6 +3,7 @@
 Every adapter, agent node, and scoring function speaks in these types.
 Keep this module pure — no I/O, no LLM calls, no framework imports.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -13,6 +14,7 @@ from typing import Optional
 
 class Mode(str, Enum):
     """Transport modes. Values match common GTFS/GBFS conventions."""
+
     WALK = "walk"
     BIKE_OWN = "bike_own"
     BIKE_SHARE = "bike_share"
@@ -20,14 +22,15 @@ class Mode(str, Enum):
     RIDESHARE = "rideshare"
     BUS = "bus"
     SUBWAY = "subway"
-    TRAIN = "train"          # GO, UP Express
-    TRAM = "tram"            # streetcar
-    FLIGHT = "flight"        # future; sets anchor for airport wedge
+    TRAIN = "train"  # GO, UP Express
+    TRAM = "tram"  # streetcar
+    FLIGHT = "flight"  # future; sets anchor for airport wedge
 
 
 @dataclass(frozen=True)
 class Location:
     """A point in space. Address optional; lat/lon required."""
+
     lat: float
     lon: float
     name: Optional[str] = None
@@ -37,6 +40,7 @@ class Location:
 @dataclass
 class Leg:
     """One continuous segment of a journey in a single mode."""
+
     mode: Mode
     origin: Location
     destination: Location
@@ -60,6 +64,7 @@ class Leg:
 @dataclass
 class Itinerary:
     """An end-to-end journey composed of one or more legs."""
+
     legs: list[Leg]
 
     @property
@@ -85,12 +90,12 @@ class Itinerary:
     @property
     def num_transfers(self) -> int:
         """Transfers = mode changes, not counting walk glue."""
-        non_walk_legs = [l for l in self.legs if l.mode != Mode.WALK]
+        non_walk_legs = [leg for leg in self.legs if leg.mode != Mode.WALK]
         return max(0, len(non_walk_legs) - 1)
 
     @property
     def walking_distance_m(self) -> float:
-        return sum(l.distance_m for l in self.legs if l.mode == Mode.WALK)
+        return sum(leg.distance_m for leg in self.legs if leg.mode == Mode.WALK)
 
     @property
     def modes_used(self) -> list[Mode]:
@@ -104,8 +109,8 @@ class Itinerary:
     @property
     def reliability_sigma_min(self) -> float:
         """Combined reliability — sqrt of sum of variances (independent legs)."""
-        variance = sum(l.reliability_sigma_min ** 2 for l in self.legs)
-        return variance ** 0.5
+        variance = sum(leg.reliability_sigma_min**2 for leg in self.legs)
+        return variance**0.5
 
     def arrival_by(self, confidence: float = 0.90) -> datetime:
         """Arrival time at a given confidence level.
@@ -113,7 +118,6 @@ class Itinerary:
         Uses normal approximation: arrival + z*sigma.
         Confidence 0.50 = mean, 0.90 ≈ mean + 1.28σ, 0.95 ≈ mean + 1.645σ.
         """
-        from math import sqrt
         # Inverse normal CDF approximation for common confidence levels
         z_table = {0.50: 0.0, 0.75: 0.674, 0.90: 1.282, 0.95: 1.645, 0.99: 2.326}
         # Pick closest
@@ -124,6 +128,7 @@ class Itinerary:
 @dataclass
 class JourneyRequest:
     """A routing request. `arrive_by` makes this an airport-style query."""
+
     origin: Location
     destination: Location
     departure_time: Optional[datetime] = None
