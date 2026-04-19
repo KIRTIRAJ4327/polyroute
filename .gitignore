@@ -30,3 +30,6 @@ graph.obj
 # Env
 .env
 .env.local
+
+# Interview notes (raw, may contain PII — only synthesis is committed)
+docs/interviews/notes/

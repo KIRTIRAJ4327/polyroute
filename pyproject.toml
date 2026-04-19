@@ -52,6 +52,10 @@ exclude = ["tests*", "docker*", "web*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+addopts = "-m 'not integration'"
+markers = [
+    "integration: tests that require external services (OTP2, GBFS, LLM APIs). Opt-in with `pytest -m integration`.",
+]
 
 [tool.ruff]
 line-length = 100

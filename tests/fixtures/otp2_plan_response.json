@@ -1,0 +1,64 @@
+{
+  "data": {
+    "plan": {
+      "itineraries": [
+        {
+          "startTime": 1776398400000,
+          "endTime": 1776402600000,
+          "duration": 4200,
+          "walkDistance": 480.0,
+          "legs": [
+            {
+              "mode": "WALK",
+              "startTime": 1776398400000,
+              "endTime": 1776398640000,
+              "duration": 240,
+              "distance": 200.0,
+              "from": {"lat": 43.6011, "lon": -79.5463, "name": "Fountainhead Rd"},
+              "to": {"lat": 43.6018, "lon": -79.5470, "name": "MiWay 26 stop"},
+              "route": null,
+              "agency": null,
+              "transitLeg": false
+            },
+            {
+              "mode": "BUS",
+              "startTime": 1776398640000,
+              "endTime": 1776399960000,
+              "duration": 1320,
+              "distance": 6000.0,
+              "from": {"lat": 43.6018, "lon": -79.5470, "name": "MiWay 26 stop"},
+              "to": {"lat": 43.6366, "lon": -79.5358, "name": "Kipling Station"},
+              "route": {"shortName": "26", "longName": "Burnhamthorpe"},
+              "agency": {"name": "MiWay"},
+              "transitLeg": true
+            },
+            {
+              "mode": "SUBWAY",
+              "startTime": 1776400200000,
+              "endTime": 1776402120000,
+              "duration": 1920,
+              "distance": 14000.0,
+              "from": {"lat": 43.6366, "lon": -79.5358, "name": "Kipling Station"},
+              "to": {"lat": 43.6453, "lon": -79.3806, "name": "Union Station"},
+              "route": {"shortName": "2", "longName": "Bloor-Danforth"},
+              "agency": {"name": "TTC"},
+              "transitLeg": true
+            },
+            {
+              "mode": "RAIL",
+              "startTime": 1776402120000,
+              "endTime": 1776402600000,
+              "duration": 480,
+              "distance": 22000.0,
+              "from": {"lat": 43.6453, "lon": -79.3806, "name": "Union Station"},
+              "to": {"lat": 43.6777, "lon": -79.6248, "name": "Pearson T1"},
+              "route": {"shortName": "UP", "longName": "Union Pearson Express"},
+              "agency": {"name": "Metrolinx"},
+              "transitLeg": true
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
