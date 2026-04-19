@@ -1,0 +1,37 @@
+{
+  "last_updated": 1744900000,
+  "ttl": 60,
+  "version": "2.3",
+  "data": {
+    "stations": [
+      {
+        "station_id": "7001",
+        "name": "King St W / Spadina Ave",
+        "lat": 43.6458,
+        "lon": -79.3957,
+        "capacity": 31
+      },
+      {
+        "station_id": "7002",
+        "name": "Bay St / College St",
+        "lat": 43.6610,
+        "lon": -79.3848,
+        "capacity": 35
+      },
+      {
+        "station_id": "7003",
+        "name": "Queens Quay W / Spadina Ave",
+        "lat": 43.6383,
+        "lon": -79.3939,
+        "capacity": 27
+      },
+      {
+        "station_id": "7004",
+        "name": "Temporarily Decommissioned",
+        "lat": 43.6500,
+        "lon": -79.3900,
+        "capacity": 0
+      }
+    ]
+  }
+}
