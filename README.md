@@ -57,11 +57,40 @@ Four clean layers:
 ```bash
 git clone https://github.com/KIRTIRAJ4327/polyroute
 cd polyroute
-pip install -e .
+pip install -e ".[dev,api]"
+pytest                          # 80 unit tests, 5 integration tests skip without OTP2/GBFS
 python examples/toronto_airport.py
 ```
 
-That demo uses hand-tuned mock data for the Fountainhead → Pearson corridor. For real routing:
+That demo uses hand-tuned mock data for the Fountainhead → Pearson corridor.
+
+### Run the server
+
+```bash
+uvicorn polyroute.api.server:app --reload
+# → http://127.0.0.1:8000/   (web UI)
+# → http://127.0.0.1:8000/plan   (POST JSON)
+```
+
+With zero config, the planner wires up the rideshare heuristic and the mock Toronto fallback. Flip on real data per-adapter:
+
+```bash
+export POLYROUTE_OTP2_URL=http://localhost:8080   # see docker/otp2-toronto/
+export POLYROUTE_GBFS_URL=https://tor.publicbikesystem.net/ube/gbfs/v1/
+export POLYROUTE_DISABLE_FALLBACK=1               # production: don't mix mock data
+```
+
+### Opt in to the LLM explainer
+
+```bash
+pip install -e ".[llm]"
+export POLYROUTE_LLM_PROVIDER=anthropic           # or openai, azure
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+The server falls back to the rule-based explainer if the provider call fails, and the API surfaces `explanation_source` (`"llm"` | `"rule-based-fallback"` | `"rule-based"`) per itinerary.
+
+### Run OTP2 locally (real transit)
 
 ```bash
 cd docker/otp2-toronto
@@ -78,11 +107,12 @@ Then point the OTP2 adapter at `http://localhost:8080`.
 - [x] OTP2 Docker setup for GTA
 - [x] FastAPI server + minimal web UI
 - [x] OTP2 adapter scaffold + fixture-based unit tests (#2, #7)
+- [x] Rideshare heuristic adapter (published per-km + surge model) (#3)
+- [x] GBFS adapter (Bike Share Toronto) (#4)
+- [x] Composition strategy module — mixed-mode candidates at transit anchors (#5)
+- [x] Planner orchestrator + API wiring (fan-out, graceful degradation, env-driven)
+- [x] LLM-backed explainer (Claude via Anthropic / OpenAI / Azure AI Foundry) (#6)
 - [ ] OTP2 adapter integration-tested against a live container (#2)
-- [ ] Rideshare heuristic adapter (published per-km + surge model) (#3)
-- [ ] GBFS adapter (Bike Share Toronto) (#4)
-- [ ] Composition strategy module — mixed-mode candidates at transit anchors (#5)
-- [ ] LLM-backed explainer (Claude via Anthropic / Azure AI Foundry) (#6)
 - [ ] LangGraph agent for multi-step reasoning (v0.2)
 - [ ] v0.1.0 on PyPI
 
