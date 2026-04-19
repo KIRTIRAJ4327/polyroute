@@ -130,10 +130,14 @@ polyroute/
 │   ├── core/
 │   │   ├── __init__.py
 │   │   ├── types.py                # Leg, Itinerary, JourneyRequest, Location, Mode
-│   │   └── pareto.py               # pareto_front, score_itineraries, is_feasible
+│   │   ├── pareto.py               # pareto_front, score_itineraries, is_feasible
+│   │   ├── compose.py              # first-mile rideshare → transit-anchor composition
+│   │   └── anchors_gta.json        # Kipling, Islington, Bloor-Yonge, Dundas West, Union, ...
 │   ├── adapters/
 │   │   ├── __init__.py
-│   │   └── mock_toronto.py         # 5 realistic Fountainhead→YYZ candidates
+│   │   ├── mock_toronto.py         # 5 realistic Fountainhead→YYZ candidates
+│   │   ├── otp2.py                 # OTP2 Index GraphQL adapter (transit/walk/bike)
+│   │   └── rideshare_heuristic.py  # Clearly-labeled rate-card + surge estimator (no live prices)
 │   ├── llm/
 │   │   ├── __init__.py
 │   │   └── explainer.py            # Rule-based tradeoff explanations
@@ -142,7 +146,13 @@ polyroute/
 │       └── server.py               # FastAPI: /health /presets /plan
 │
 ├── tests/
-│   └── test_core.py                # 9 tests, all passing
+│   ├── test_core.py                # Pareto + types
+│   ├── test_otp2_adapter.py        # fixture-based unit tests for OTP2 mapper
+│   ├── test_rideshare_heuristic.py # rate-card, surge, determinism
+│   ├── test_compose.py             # composition strategy with mocked sources
+│   ├── fixtures/otp2_plan_response.json
+│   └── integration/
+│       └── test_otp2_live.py       # marked `integration`; skips if OTP2 unreachable
 │
 ├── examples/
 │   └── toronto_airport.py          # CLI demo with --cheap --fast --luggage --arrive-by
@@ -156,22 +166,32 @@ polyroute/
 │       ├── docker-compose.yml
 │       └── fetch-feeds.sh          # TTC, GO, UP, MiWay, Brampton, OSM Ontario
 │
-└── docs/
-    └── architecture.md             # 4-layer design doc
+├── docs/
+│   ├── architecture.md             # 4-layer design doc
+│   ├── adapters.md                 # how to write a new adapter
+│   ├── interviews/                 # Track D: recruiting posts, script, notes template
+│   └── sred/                       # SR&ED monthly engineering logs
+│
+└── .github/workflows/ci.yml        # pytest + ruff matrix on Py 3.10/3.11/3.12
 ```
 
 ### What's working end-to-end
-- `pytest` → 9/9 passing
+- `pytest` passes (core + otp2 mapper + rideshare + composition); integration suite opt-in
 - `python examples/toronto_airport.py` → prints 5 candidates, 4 on Pareto frontier, with labels and explanations
 - `uvicorn polyroute.api.server:app` → serves web UI at `/` and JSON API at `/plan`
 - `--cheap` / `--fast` / `--luggage` / `--arrive-by` flags all correctly shift ranking
+- CI runs pytest + ruff on every push (Python 3.10 / 3.11 / 3.12)
 
-### What's stubbed out
-- **Mock Toronto adapter** returns hand-tuned candidates. Real OTP2 adapter not yet implemented.
+### What's landed since initial scaffold
+- **OTP2 adapter** (`polyroute/adapters/otp2.py`) — Index GraphQL client + mode-map + sigma priors. Unit-tested against a captured fixture; live-tested via opt-in integration suite.
+- **Rideshare heuristic** (`polyroute/adapters/rideshare_heuristic.py`) — rate-card + surge table for UberX-Toronto, snapshot-dated, always labeled "Estimate only — not a live price" per CLAUDE.md §3.2.
+- **Composition strategy** (`polyroute/core/compose.py` + `anchors_gta.json`) — `compose_first_mile(req, transit, rideshare, anchors)` stitches rideshare-to-anchor onto transit-to-destination itineraries. Pure; takes `Protocol` sources so it does not depend on concrete adapters.
+
+### What's still stubbed
 - **Rule-based explainer** works but is rigid. LLM explainer interface exists via the same `explain()` signature but is not wired to a model yet.
 - **LangGraph agent wrapper** folder exists but is empty. Intentionally deferred.
-- **Rideshare heuristic adapter** not yet written. Mock adapter fakes it inline.
 - **GBFS adapter** for Bike Share Toronto not yet written.
+- **Composition → API wiring** — `core/compose.py` exists but `polyroute/api/server.py` still calls `mock_toronto` only. Wire-up pending once the OTP2 + rideshare adapters are both exercised end-to-end against a live container.
 
 ---
 

@@ -1,0 +1,96 @@
+{
+  "description": "Transit anchors for first-mile/last-mile composition in the GTA. Pick points with good multi-route coverage — ride to the anchor, transit from there.",
+  "snapshot_date": "2026-04",
+  "anchors": [
+    {
+      "id": "kipling",
+      "name": "Kipling Station",
+      "operator": "TTC",
+      "lat": 43.6372,
+      "lon": -79.5355,
+      "modes": ["subway", "bus", "go"],
+      "notes": "TTC Line 2 west terminus; MiWay and GO buses."
+    },
+    {
+      "id": "islington",
+      "name": "Islington Station",
+      "operator": "TTC",
+      "lat": 43.6451,
+      "lon": -79.5240,
+      "modes": ["subway", "bus"],
+      "notes": "TTC Line 2; Mississauga-bound MiWay."
+    },
+    {
+      "id": "bloor-yonge",
+      "name": "Bloor-Yonge Station",
+      "operator": "TTC",
+      "lat": 43.6708,
+      "lon": -79.3856,
+      "modes": ["subway"],
+      "notes": "TTC Lines 1 and 2 interchange."
+    },
+    {
+      "id": "dundas-west",
+      "name": "Dundas West Station",
+      "operator": "TTC",
+      "lat": 43.6569,
+      "lon": -79.4489,
+      "modes": ["subway", "tram", "train"],
+      "notes": "TTC Line 2; connects to Bloor GO/UP Express via tunnel."
+    },
+    {
+      "id": "union",
+      "name": "Union Station",
+      "operator": "Metrolinx",
+      "lat": 43.6452,
+      "lon": -79.3806,
+      "modes": ["subway", "train"],
+      "notes": "TTC Line 1; all GO lines; UP Express to YYZ."
+    },
+    {
+      "id": "bloor-go",
+      "name": "Bloor GO / UP Express",
+      "operator": "Metrolinx",
+      "lat": 43.6544,
+      "lon": -79.4475,
+      "modes": ["train"],
+      "notes": "UP Express to YYZ (25 min) + Kitchener GO."
+    },
+    {
+      "id": "weston-go",
+      "name": "Weston GO / UP Express",
+      "operator": "Metrolinx",
+      "lat": 43.7018,
+      "lon": -79.5111,
+      "modes": ["train"],
+      "notes": "UP Express to YYZ (10 min) + Kitchener GO."
+    },
+    {
+      "id": "square-one",
+      "name": "Square One Bus Terminal",
+      "operator": "MiWay",
+      "lat": 43.5935,
+      "lon": -79.6428,
+      "modes": ["bus", "go"],
+      "notes": "MiWay hub; GO 21/29 to Union."
+    },
+    {
+      "id": "yorkdale",
+      "name": "Yorkdale Station",
+      "operator": "TTC",
+      "lat": 43.7254,
+      "lon": -79.4524,
+      "modes": ["subway", "bus"],
+      "notes": "TTC Line 1; GO/regional bus terminal."
+    },
+    {
+      "id": "finch",
+      "name": "Finch Station",
+      "operator": "TTC",
+      "lat": 43.7804,
+      "lon": -79.4149,
+      "modes": ["subway", "bus"],
+      "notes": "TTC Line 1 north terminus; YRT/Viva connections."
+    }
+  ]
+}
