@@ -58,7 +58,7 @@ Four clean layers:
 git clone https://github.com/KIRTIRAJ4327/polyroute
 cd polyroute
 pip install -e ".[dev,api]"
-pytest                          # 88 unit tests, 5 integration tests skip without OTP2/GBFS
+pytest                          # 90 unit tests, 5 integration tests skip without OTP2/GBFS
 python examples/toronto_airport.py
 ```
 
