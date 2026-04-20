@@ -120,6 +120,11 @@ For a hosted demo (Fly.io, Azure Container Apps, Cloud Run), mount the same env
 vars. Leave `POLYROUTE_DISABLE_FALLBACK` off only when you want the mock data to
 stand in for missing transit — see CLAUDE.md §5 for the fallback semantic.
 
+In production, **also set** `POLYROUTE_CORS_ORIGINS` to a comma-separated
+allow-list (e.g. `https://polyroute.dev,https://app.polyroute.dev`). Leaving
+it unset keeps the default wildcard, which is fine for local dev but not for a
+public deployment.
+
 Provenance comes back two ways in `/plan`:
 
 - **Query-level** `sources[]` — which adapters were wired for this request

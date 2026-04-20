@@ -24,6 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from .. import __version__
 from ..core import JourneyRequest, Location, score_itineraries
 from ..core.planner import Planner, default_planner
 from ..adapters.mock_toronto import (
@@ -47,14 +48,27 @@ log = logging.getLogger(__name__)
 app = FastAPI(
     title="polyroute",
     description="Agentic multi-modal journey planning",
-    version="0.0.1",
+    version=__version__,
 )
+
+
+def _cors_origins() -> list[str]:
+    """Parse ``POLYROUTE_CORS_ORIGINS`` (comma-separated) or fall back to ``*``.
+
+    Production deployments MUST set an explicit list — see CLAUDE.md §14
+    and the deployment notes in the README.
+    """
+    raw = (os.getenv("POLYROUTE_CORS_ORIGINS") or "").strip()
+    if not raw:
+        return ["*"]
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten for deployment
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_cors_origins(),
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 
@@ -227,7 +241,7 @@ class PlanResponse(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "version": "0.0.1"}
+    return {"status": "ok", "version": __version__}
 
 
 @app.get("/presets")

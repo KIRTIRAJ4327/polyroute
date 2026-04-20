@@ -2,7 +2,7 @@
 
 **This file is the permanent working memory for Claude Code on this project. Read it in full at the start of every session. Keep it updated as decisions, research, and scope change.**
 
-Last updated: April 2026
+Last updated: April 2026 (v0.1.0 code-complete)
 Owner: Kirtirajsinh Atodariya (Kirtiraj)
 Repo: https://github.com/KIRTIRAJ4327/polyroute
 
@@ -176,21 +176,29 @@ polyroute/
 │       ├── docker-compose.yml
 │       └── fetch-feeds.sh          # TTC, GO, UP, MiWay, Brampton, OSM Ontario
 │
+├── Dockerfile                      # Multi-stage FastAPI app image, non-root, healthcheck
+├── .dockerignore
+├── CHANGELOG.md                    # Keep a Changelog; v0.1.0 scope
+│
 ├── docs/
 │   ├── architecture.md             # 4-layer design doc
 │   ├── adapters.md                 # how to write a new adapter
-│   ├── interviews/                 # Track D: recruiting posts, script, notes template
+│   ├── interviews/                 # Track D: recruiting posts, script, notes template, LOI template
 │   └── sred/                       # SR&ED monthly engineering logs
 │
-└── .github/workflows/ci.yml        # pytest + ruff matrix on Py 3.10/3.11/3.12
+└── .github/workflows/
+    ├── ci.yml                      # pytest + ruff matrix on Py 3.10/3.11/3.12
+    └── release.yml                 # tag-triggered PyPI publish via OIDC
 ```
 
 ### What's working end-to-end
-- `pytest` passes (86 unit tests covering core, OTP2 mapper, rideshare, composition, GBFS, LLM explainer, LLM API wiring, Planner, API); 5 integration tests opt-in
-- `python examples/toronto_airport.py` → prints 5 candidates, 4 on Pareto frontier, with labels and explanations
-- `uvicorn polyroute.api.server:app` → serves web UI at `/`; `POST /plan` routes through `Planner.default_planner()` and returns `candidates_generated`, `pareto_optimal`, ranked `itineraries`, and a `sources` provenance list
+- `pytest` passes (90 unit tests covering core, OTP2 mapper, rideshare, composition, GBFS, LLM explainer, LLM API wiring, Planner, API, CORS); 5 integration tests opt-in
+- `python examples/toronto_airport.py` → routes through `default_planner()`, prints 5 candidates on the Pareto frontier with per-candidate `[via <source>]` provenance alongside labels and explanations
+- `uvicorn polyroute.api.server:app` → serves web UI at `/`; `POST /plan` routes through `Planner.default_planner()` and returns `candidates_generated`, `pareto_optimal`, ranked `itineraries` (each with `source` + `explanation_source`), and a query-level `sources` provenance list. Web UI renders source pills between the results header and the cards, plus a `via <adapter>` tag under each itinerary.
+- `docker build -t polyroute .` + `docker run -p 8000:8000 polyroute` → multi-stage non-root image for the FastAPI server with healthcheck. Separate from the OTP2 container under `docker/otp2-toronto/`.
 - `--cheap` / `--fast` / `--luggage` / `--arrive-by` flags all correctly shift ranking
 - CI runs pytest + ruff on every push (Python 3.10 / 3.11 / 3.12)
+- `v*` tag triggers `.github/workflows/release.yml` which builds sdist + wheel, validates with `twine check`, and publishes to PyPI via OIDC trusted publishing (configure trusted publisher on pypi.org/manage/project/polyroute before tagging)
 
 ### What's landed since initial scaffold
 - **OTP2 adapter** (`polyroute/adapters/otp2.py`) — Index GraphQL client + mode-map + sigma priors. Unit-tested against a captured fixture; live-tested via opt-in integration suite.
@@ -201,11 +209,15 @@ polyroute/
 - **Planner orchestrator** (`polyroute/core/planner.py`) — fan-out seam. Takes optional `transit`, `rideshare`, `bike_share`, `fallback` sources (by `Protocol` shape, not concrete adapter), plus anchors + `ComposeOptions`. `plan(req)` runs each live adapter inside a `_safe()` try/except so one broken adapter never takes the call down, and layers composed rideshare→anchor→transit and bike-share→anchor→transit candidates on top when the corresponding pair is wired. Fallback semantic: `mock_toronto` stands in for the transit pathway only — it fires when no transit itineraries were produced (either `transit=None` or the wired source raised/returned `[]`). Rideshare + bike-share run independently of the fallback. `default_planner()` reads `POLYROUTE_OTP2_URL`, `POLYROUTE_GBFS_URL`, and `POLYROUTE_DISABLE_FALLBACK` so a zero-config instance works for the demo and production flips `POLYROUTE_DISABLE_FALLBACK=1` to prevent mock data from masquerading as live.
 - **API wiring** — `polyroute/api/server.py` now holds a module-level `_planner: Planner = default_planner()` (swap via `set_planner()` for tests and custom embeds) and `/plan` calls `planner.plan(req)` instead of `mock_toronto.generate_candidates` directly. `PlanResponse` gained a `sources: list[str]` field — reports which adapters were wired (`transit`, `rideshare`, `bike_share`, `compose_first_mile`, `compose_bike_share_first_mile`) plus `mock_fallback` when the fallback pathway actually fires (no transit wired + fallback present + candidates produced). `tests/test_api.py` exercises the full stack through FastAPI's `TestClient` with injected fakes. `tests/test_planner.py` covers fan-out, graceful degradation, and env-var wiring.
 - **LLM explainer wired through API** — server exposes a module-level `_explainer: Optional[LLMExplainer] = default_explainer()` (swap via `set_explainer()` in tests). `default_explainer()` reads `POLYROUTE_LLM_PROVIDER` (`anthropic` | `openai` | `azure`) + `POLYROUTE_LLM_MODEL` and returns an `LLMExplainer` whose `generate` callable lazy-imports the SDK on first call. When the env var is absent, unknown, or the Azure path is missing a deployment, the server falls back to the rule-based explainer cleanly. Each `ItineraryOut` now carries `explanation_source` (`"llm"` | `"rule-based-fallback"` | `"rule-based"`) so the UI can badge generated output. The web UI renders an `LLM` / `RULE` badge next to the explanation accordingly.
+- **Per-candidate provenance** — `Itinerary` gained a `source: Optional[str]` field. `Planner._safe()` stamps each candidate with the strategy name (`"transit"`, `"rideshare"`, `"bike_share"`, `"compose_first_mile"`, `"compose_bike_share_first_mile"`, `"fallback"`) as it fans out. `ItineraryOut.source` exposes it. The CLI demo prints `[via <source>]` next to each ranked itinerary. Tests (`test_planner.py::test_candidates_carry_source_provenance`, `::test_fallback_candidates_tagged_fallback`) pin the tagging contract.
+- **Deployment + release path** — `Dockerfile` + `.dockerignore` ship a multi-stage app image. `.github/workflows/release.yml` tag-triggers a PyPI publish via OIDC. `CHANGELOG.md` captures the v0.1.0 scope. `POLYROUTE_CORS_ORIGINS` lets production deployments lock down CORS to a comma-separated allow-list (unset keeps the dev-friendly wildcard). README gained a "Deploy" section documenting both provenance flavors.
+- **Version** — bumped to `0.1.0` in `pyproject.toml` and surfaced via `polyroute.__version__` → `/health` → `FastAPI.version`.
 
 ### What's still stubbed
-- **LangGraph agent wrapper** folder exists but is empty. Intentionally deferred.
-- **OTP2 live-container integration tests** — `tests/integration/test_otp2_live.py` runs against a real OTP2 GraphQL endpoint when `POLYROUTE_OTP2_URL` is set; skipped otherwise. Still needs a green run against the full GTA feed set.
-- **Per-candidate provenance** — `PlanResponse.sources` currently describes wiring (+ fallback-fired heuristic), not which adapter produced each specific candidate. A `PlannerResult` diagnostic struct is the clean fix when a consumer actually needs this.
+- **LangGraph agent wrapper** folder exists but is empty. Intentionally deferred (CLAUDE.md §4 #6, §7 v0.2.0).
+- **OTP2 live-container integration tests** — `tests/integration/test_otp2_live.py` runs against a real OTP2 GraphQL endpoint when `POLYROUTE_OTP2_URL` is set; skipped otherwise. Still needs a green run against the full GTA feed set on a machine with the `docker/otp2-toronto/` container built.
+- **PyPI trusted-publisher configuration** — workflow is wired; the one-time config on pypi.org/manage/project/polyroute/ still needs to happen before `git tag v0.1.0 && git push --tags` is safe.
+- **Live LLM integration test** — runtime paths (Anthropic / OpenAI / Azure) are unit-tested via fakes; a live-key smoke test is out until an API key is available in the CI or local env.
 
 ---
 
@@ -263,16 +275,16 @@ polyroute/
 
 ### v0.1.0 — "real data, real users" (target: end of weekend 4)
 
-Hard requirements:
-1. OTP2 running locally with full GTA feeds (TTC, GO, UP Express, MiWay, Brampton)
-2. `polyroute/adapters/otp2.py` — replaces `mock_toronto.py` for the transit/walk/bike portions
-3. `polyroute/adapters/rideshare_heuristic.py` — clearly-labeled-estimate pricing based on published Uber Toronto rates + time-of-day surge multiplier
-4. `polyroute/adapters/gbfs.py` — Bike Share Toronto station availability
-5. Composition strategy module — generates first-mile/last-mile mixed-mode candidates around "transit anchors" (Kipling, Islington, Bloor, Dundas West, Union, major GO stations)
-6. LLM explainer wired to Claude via Anthropic SDK (model-agnostic adapter; also support OpenAI and Azure AI Foundry). Rule-based stays as the zero-dep fallback.
-7. Integration tests for the OTP2 adapter against a known corridor
-8. v0.1.0 tagged and published to PyPI
-9. **Parallel track: 10 user interviews completed** (see section 8)
+Hard requirements (code-complete in April 2026):
+1. ✅ OTP2 docker-compose ready; running against the full GTA feed is still manual — needs a green opt-in integration run with the real feeds
+2. ✅ `polyroute/adapters/otp2.py` — GraphQL client, mode-map, sigma priors, fixture-tested
+3. ✅ `polyroute/adapters/rideshare_heuristic.py` — UberX-Toronto rate card + time-of-day surge, snapshot-dated, always labeled
+4. ✅ `polyroute/adapters/gbfs.py` — Bike Share Toronto; nearest-station lookup; walk→bike→walk itineraries
+5. ✅ `polyroute/core/compose.py` — rideshare-first-mile + bike-share-first-mile at GTA anchors (Kipling, Islington, Bloor-Yonge, Dundas West, Union, major GO stations)
+6. ✅ `polyroute/llm/llm_explainer.py` — provider-agnostic (Anthropic / OpenAI / Azure AI Foundry), lazy imports, rule-based fallback with `ExplainResult.source` provenance
+7. 🟡 Integration tests exist and skip cleanly when OTP2 is unreachable; **green run against the live GTA container is still outstanding**
+8. 🟡 `v0.1.0` tagged in `pyproject.toml`; `.github/workflows/release.yml` ready to publish to PyPI via OIDC trusted publishing — **final step is (a) configure trusted publisher on pypi.org, (b) `git tag v0.1.0 && git push --tags`**
+9. 🟡 **Parallel track: 10 user interviews** — recruiting copy, script, notes template, and three LOI template variants live in `docs/interviews/`. Posting + interviewing is non-code work on Kirtiraj.
 
 ### v0.2.0 — agentic depth
 

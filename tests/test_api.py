@@ -246,3 +246,25 @@ def test_default_explainer_azure_needs_deployment(monkeypatch):
 
     # Without a deployment name, azure path refuses rather than misbehaving
     assert default_explainer() is None
+
+
+# ---------------------------------------------------------------------------
+# CORS env var
+# ---------------------------------------------------------------------------
+
+
+def test_cors_origins_defaults_to_wildcard(monkeypatch):
+    monkeypatch.delenv("POLYROUTE_CORS_ORIGINS", raising=False)
+    from polyroute.api.server import _cors_origins
+
+    assert _cors_origins() == ["*"]
+
+
+def test_cors_origins_parses_comma_separated(monkeypatch):
+    monkeypatch.setenv(
+        "POLYROUTE_CORS_ORIGINS",
+        "https://polyroute.dev, https://app.polyroute.dev ,",
+    )
+    from polyroute.api.server import _cors_origins
+
+    assert _cors_origins() == ["https://polyroute.dev", "https://app.polyroute.dev"]
