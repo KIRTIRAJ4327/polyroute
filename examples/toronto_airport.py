@@ -1,14 +1,15 @@
 """Flagship demo: Fountainhead Rd → Toronto Pearson at 6am Tuesday.
 
-Runs the full pipeline end-to-end using mock adapters so you can see
-ranked, explained, Pareto-filtered results before OTP2 is running.
+Runs the full pipeline end-to-end through the Planner orchestrator so you
+see the same fan-out the FastAPI server does — rideshare heuristic, mock
+fallback, and (when env vars are set) OTP2 + GBFS on top.
 
     python examples/toronto_airport.py
     python examples/toronto_airport.py --cheap
     python examples/toronto_airport.py --luggage --arrive-by 07:45
 
-Once OTP2 and real adapters are wired in, swap the import in
-`generate_candidates` and this script keeps working unchanged.
+Set ``POLYROUTE_OTP2_URL`` / ``POLYROUTE_GBFS_URL`` to pull in real data.
+Set ``POLYROUTE_DISABLE_FALLBACK=1`` to hide the mock Toronto candidates.
 """
 
 from __future__ import annotations
@@ -16,8 +17,9 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timedelta
 
+from polyroute.adapters.mock_toronto import FOUNTAINHEAD, YYZ
 from polyroute.core import JourneyRequest, score_itineraries
-from polyroute.adapters.mock_toronto import generate_candidates, FOUNTAINHEAD, YYZ
+from polyroute.core.planner import default_planner
 from polyroute.llm import explain, one_line_summary
 
 
@@ -63,8 +65,9 @@ def main() -> None:
         cost_weight=cost_w,
     )
 
-    # Run the pipeline
-    candidates = generate_candidates(req)
+    # Run the pipeline through the Planner so the demo mirrors the server
+    planner = default_planner()
+    candidates = planner.plan(req)
     scored = score_itineraries(candidates, req)
 
     # Render
@@ -78,10 +81,19 @@ def main() -> None:
     print(f"  Preferences: time×{time_w}  cost×{cost_w}")
     print()
     print(f"  Found {len(candidates)} candidates, {len(scored)} on the Pareto frontier.")
+    # Show the mix of sources — makes the Planner fan-out visible
+    source_counts: dict[str, int] = {}
+    for c in candidates:
+        key = c.source or "unknown"
+        source_counts[key] = source_counts.get(key, 0) + 1
+    if source_counts:
+        mix = ", ".join(f"{k}×{v}" for k, v in sorted(source_counts.items()))
+        print(f"  Sources: {mix}")
     print()
 
     for i, s in enumerate(scored, 1):
-        print(f"  {i}. {one_line_summary(s)}")
+        src = s.itinerary.source or "unknown"
+        print(f"  {i}. {one_line_summary(s)}  [via {src}]")
         print(f"     {explain(s, scored)}")
         print()
 

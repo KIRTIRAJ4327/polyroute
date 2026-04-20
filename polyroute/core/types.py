@@ -66,6 +66,10 @@ class Itinerary:
     """An end-to-end journey composed of one or more legs."""
 
     legs: list[Leg]
+    # Provenance tag identifying which adapter / strategy produced this
+    # candidate. Stamped by the Planner after fan-out. ``None`` when an
+    # adapter is consumed directly (tests, examples).
+    source: Optional[str] = None
 
     @property
     def start_time(self) -> datetime:

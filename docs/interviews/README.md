@@ -17,6 +17,7 @@ Anonymized notes go under `docs/interviews/notes/<initials>-<yyyy-mm-dd>.md`
 | `recruiting-posts.md` | Copy-paste posts for Reddit, LinkedIn, Slack, hackathon Discords. |
 | `script.md` | The 20-minute interview script from `CLAUDE.md` §8. |
 | `notes-template.md` | Structured-notes template — same fields per interview makes synthesis easier. |
+| `loi-template.md` | Three LOI templates (GTAA, employer, settlement agency) for Week-9–12 B2B outreach per CLAUDE.md §8. |
 
 ## Operational notes
 

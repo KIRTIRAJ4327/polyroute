@@ -24,6 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from .. import __version__
 from ..core import JourneyRequest, Location, score_itineraries
 from ..core.planner import Planner, default_planner
 from ..adapters.mock_toronto import (
@@ -47,14 +48,27 @@ log = logging.getLogger(__name__)
 app = FastAPI(
     title="polyroute",
     description="Agentic multi-modal journey planning",
-    version="0.0.1",
+    version=__version__,
 )
+
+
+def _cors_origins() -> list[str]:
+    """Parse ``POLYROUTE_CORS_ORIGINS`` (comma-separated) or fall back to ``*``.
+
+    Production deployments MUST set an explicit list — see CLAUDE.md §14
+    and the deployment notes in the README.
+    """
+    raw = (os.getenv("POLYROUTE_CORS_ORIGINS") or "").strip()
+    if not raw:
+        return ["*"]
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten for deployment
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_cors_origins(),
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 
@@ -194,6 +208,14 @@ class ItineraryOut(BaseModel):
         "rule-based",
         description="'llm' | 'rule-based-fallback' | 'rule-based'",
     )
+    source: Optional[str] = Field(
+        None,
+        description=(
+            "Which adapter / strategy produced this itinerary: "
+            "'transit', 'rideshare', 'bike_share', 'compose_first_mile', "
+            "'compose_bike_share_first_mile', or 'fallback'."
+        ),
+    )
     total_duration_min: float
     total_cost_cad: float
     num_transfers: int
@@ -219,7 +241,7 @@ class PlanResponse(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "version": "0.0.1"}
+    return {"status": "ok", "version": __version__}
 
 
 @app.get("/presets")
@@ -291,6 +313,7 @@ def plan(req_in: PlanRequest) -> PlanResponse:
                 summary=summarize_legs(it),
                 explanation=explanation_text,
                 explanation_source=explanation_source,
+                source=it.source,
                 total_duration_min=round(it.total_duration_min, 1),
                 total_cost_cad=round(it.total_cost_cad, 2),
                 num_transfers=it.num_transfers,
@@ -324,11 +347,11 @@ def plan(req_in: PlanRequest) -> PlanResponse:
 
 
 def _describe_sources(planner: Planner, candidate_count: int) -> list[str]:
-    """Report which adapters were wired in. Useful for UI provenance badges.
+    """Report which adapters were wired in for this request.
 
-    Note: this describes wiring, not which adapter *actually* produced
-    each candidate. A planner-level diagnostic struct can come later if
-    a consumer needs per-candidate provenance.
+    This is the query-level provenance — "what was live when we answered"
+    — as opposed to ``ItineraryOut.source`` which reports which adapter
+    produced each specific candidate.
     """
     sources: list[str] = []
     if planner.transit is not None:
