@@ -26,30 +26,21 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Callable, Optional, Protocol
+from typing import Callable, Optional
 
 from .compose import (
     Anchor,
+    BikeShareSource,
     ComposeOptions,
     RideshareEstimator,
     TransitSource,
+    compose_bike_share_first_mile,
     compose_first_mile,
     load_gta_anchors,
 )
 from .types import Itinerary, JourneyRequest
 
 log = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Source protocol for bike-share-style single-call adapters
-# ---------------------------------------------------------------------------
-
-
-class BikeShareSource(Protocol):
-    """Anything that can produce walk → bike → walk itineraries."""
-
-    def plan(self, req: JourneyRequest, num_itineraries: int = 1) -> list[Itinerary]: ...
 
 
 FallbackFn = Callable[[JourneyRequest], list[Itinerary]]
@@ -116,6 +107,22 @@ class Planner:
                         req,
                         self.transit,
                         self.rideshare,
+                        self.anchors,
+                        self.compose_opts,
+                    ),
+                )
+            )
+
+        # Composed first-mile: bike share to anchor + transit the rest
+        # (auto-skipped when has_luggage — see compose.py)
+        if self.transit is not None and self.bike_share is not None:
+            candidates.extend(
+                self._safe(
+                    "compose_bike_share_first_mile",
+                    lambda: compose_bike_share_first_mile(
+                        req,
+                        self.transit,
+                        self.bike_share,
                         self.anchors,
                         self.compose_opts,
                     ),

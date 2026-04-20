@@ -15,6 +15,7 @@ import pytest
 from polyroute.core.compose import (
     Anchor,
     ComposeOptions,
+    compose_bike_share_first_mile,
     compose_first_mile,
     load_gta_anchors,
 )
@@ -232,3 +233,135 @@ def test_compose_forwards_constraints_to_transit():
     assert forwarded.arrive_by == req.arrive_by
     assert forwarded.has_luggage is True
     assert forwarded.max_walking_m == pytest.approx(500.0)
+
+
+# ---------------------------------------------------------------------------
+# compose_bike_share_first_mile
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class FakeBikeShare:
+    """Returns a walk → bike → walk itinerary ending at the destination.
+
+    Tracks requests so tests can assert the anchor-query contract.
+    """
+
+    duration_min: float = 18.0
+    requests_seen: list[JourneyRequest] | None = None
+
+    def __post_init__(self) -> None:
+        if self.requests_seen is None:
+            self.requests_seen = []
+
+    def plan(self, req: JourneyRequest, num_itineraries: int = 1) -> list[Itinerary]:
+        assert self.requests_seen is not None
+        self.requests_seen.append(req)
+        depart = req.departure_time or datetime(2026, 4, 22, 6, 0)
+        mid1 = depart + timedelta(minutes=3)
+        mid2 = depart + timedelta(minutes=self.duration_min - 3)
+        end = depart + timedelta(minutes=self.duration_min)
+        legs = [
+            Leg(
+                mode=Mode.WALK,
+                origin=req.origin,
+                destination=req.origin,
+                start_time=depart,
+                end_time=mid1,
+                distance_m=250.0,
+                cost_cad=0.0,
+                reliability_sigma_min=0.5,
+            ),
+            Leg(
+                mode=Mode.BIKE_SHARE,
+                origin=req.origin,
+                destination=req.destination,
+                start_time=mid1,
+                end_time=mid2,
+                distance_m=3_000.0,
+                cost_cad=2.80,
+                reliability_sigma_min=1.5,
+                operator="Bike Share Toronto",
+            ),
+            Leg(
+                mode=Mode.WALK,
+                origin=req.destination,
+                destination=req.destination,
+                start_time=mid2,
+                end_time=end,
+                distance_m=200.0,
+                cost_cad=0.0,
+                reliability_sigma_min=0.5,
+            ),
+        ]
+        return [Itinerary(legs=legs)]
+
+
+def test_bike_compose_generates_one_per_anchor_transit_pair():
+    transit = FakeTransit(count=2)
+    bike_share = FakeBikeShare()
+    req = _make_req()
+
+    composed = compose_bike_share_first_mile(req, transit, bike_share, _two_anchors())
+
+    # 2 anchors × 2 transit itineraries each
+    assert len(composed) == 4
+    for itin in composed:
+        assert itin.legs[0].mode == Mode.WALK
+        assert itin.legs[1].mode == Mode.BIKE_SHARE
+        assert itin.legs[2].mode == Mode.WALK
+        assert itin.legs[-1].mode == Mode.SUBWAY
+
+
+def test_bike_compose_stitches_time_continuously():
+    transit = FakeTransit(count=1)
+    bike_share = FakeBikeShare(duration_min=20.0)
+    req = _make_req()
+
+    composed = compose_bike_share_first_mile(req, transit, bike_share, _two_anchors())
+
+    for itin in composed:
+        bike_end = itin.legs[2].end_time
+        transit_start = itin.legs[3].start_time
+        assert bike_end == transit_start
+
+
+def test_bike_compose_skipped_when_has_luggage():
+    transit = FakeTransit(count=1)
+    bike_share = FakeBikeShare()
+    req = JourneyRequest(
+        origin=FOUNTAINHEAD,
+        destination=YYZ,
+        departure_time=datetime(2026, 4, 22, 6, 0),
+        has_luggage=True,
+    )
+    composed = compose_bike_share_first_mile(req, transit, bike_share, _two_anchors())
+    assert composed == []
+    # The bike source should never have been called
+    assert bike_share.requests_seen == []
+
+
+def test_bike_compose_transit_request_uses_anchor_as_origin():
+    transit = FakeTransit(count=1)
+    bike_share = FakeBikeShare(duration_min=15.0)
+    req = _make_req()
+
+    compose_bike_share_first_mile(req, transit, bike_share, _two_anchors())
+
+    assert transit.requests_seen is not None
+    assert len(transit.requests_seen) == 2
+    assert transit.requests_seen[0].origin == KIPLING
+    assert transit.requests_seen[0].destination == YYZ
+    expected_depart = datetime(2026, 4, 22, 6, 0) + timedelta(minutes=15)
+    assert transit.requests_seen[0].departure_time == expected_depart
+
+
+def test_bike_compose_skips_anchor_when_bike_returns_nothing():
+    class EmptyBikeShare:
+        def plan(self, req: JourneyRequest, num_itineraries: int = 1) -> list[Itinerary]:
+            return []
+
+    composed = compose_bike_share_first_mile(
+        _make_req(), FakeTransit(count=1), EmptyBikeShare(), _two_anchors()
+    )
+    assert composed == []
