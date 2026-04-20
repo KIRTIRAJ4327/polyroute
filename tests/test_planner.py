@@ -141,11 +141,13 @@ def test_fans_out_direct_plus_composed():
     #  - 1 direct rideshare itinerary
     #  - 1 direct bike-share itinerary
     #  - 1 composed rideshare → transit itinerary
+    #  - 1 composed bike-share → transit itinerary
     assert (Mode.SUBWAY,) in modes  # direct transit
     assert (Mode.RIDESHARE,) in modes  # direct rideshare
     assert (Mode.BIKE_SHARE,) in modes  # direct bike share
-    assert (Mode.RIDESHARE, Mode.SUBWAY) in modes  # composed
-    assert len(out) == 4
+    assert (Mode.RIDESHARE, Mode.SUBWAY) in modes  # composed rideshare
+    assert (Mode.BIKE_SHARE, Mode.SUBWAY) in modes  # composed bike share
+    assert len(out) == 5
 
 
 def test_fans_out_skips_missing_adapters():
@@ -155,6 +157,26 @@ def test_fans_out_skips_missing_adapters():
     # no composition (composition needs both transit + rideshare)
     assert len(out) == 1
     assert out[0].legs[0].mode == Mode.RIDESHARE
+
+
+def test_fans_out_includes_bike_share_first_mile_when_wired_solo():
+    transit = FakeTransit()
+    bike_share = FakeBikeShare()
+
+    planner = Planner(
+        transit=transit,
+        bike_share=bike_share,
+        anchors=_two_anchors(),
+        compose_opts=ComposeOptions(per_anchor_transit_count=1, max_anchors=1),
+    )
+    out = planner.plan(_req())
+
+    modes = [tuple(leg.mode for leg in it.legs) for it in out]
+    # Expected: 1 direct transit + 1 direct bike-share + 1 composed
+    assert (Mode.SUBWAY,) in modes
+    assert (Mode.BIKE_SHARE,) in modes
+    assert (Mode.BIKE_SHARE, Mode.SUBWAY) in modes
+    assert len(out) == 3
 
 
 # ---------------------------------------------------------------------------

@@ -339,6 +339,8 @@ def _describe_sources(planner: Planner, candidate_count: int) -> list[str]:
         sources.append("bike_share")
     if planner.transit is not None and planner.rideshare is not None:
         sources.append("compose_first_mile")
+    if planner.transit is not None and planner.bike_share is not None:
+        sources.append("compose_bike_share_first_mile")
     # Fallback fires when no transit pathway is wired (Planner semantic
     # in core/planner.py). Surface that so provenance matches reality.
     if planner.transit is None and planner.fallback is not None and candidate_count > 0:

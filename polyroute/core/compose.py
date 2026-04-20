@@ -52,6 +52,12 @@ class RideshareEstimator(Protocol):
     def estimate(self, req: JourneyRequest) -> Itinerary: ...
 
 
+class BikeShareSource(Protocol):
+    """Anything that can produce walk → bike → walk itineraries."""
+
+    def plan(self, req: JourneyRequest, num_itineraries: int = 1) -> list[Itinerary]: ...
+
+
 # ---------------------------------------------------------------------------
 # Anchors
 # ---------------------------------------------------------------------------
@@ -176,6 +182,88 @@ def _estimate_first_mile(
         # we get to the anchor, not the eventual destination
     )
     itin = rideshare.estimate(first_mile_req)
+    if not itin.legs:
+        return None
+    return itin
+
+
+# ---------------------------------------------------------------------------
+# Bike-share first-mile composition
+# ---------------------------------------------------------------------------
+
+
+def compose_bike_share_first_mile(
+    req: JourneyRequest,
+    transit: TransitSource,
+    bike_share: BikeShareSource,
+    anchors: list[Anchor],
+    options: ComposeOptions | None = None,
+) -> list[Itinerary]:
+    """Generate bike-share-first-mile + transit candidates.
+
+    Parallel to :func:`compose_first_mile` but the first leg is a
+    walk → bike → walk from the bike-share adapter instead of a
+    rideshare. Only fires for eligible anchors — if the rider has
+    luggage, bike share is off the table and this returns ``[]``.
+
+    Candidate shape: ``[walk, bike, walk, *transit_legs]``. The transit
+    source is queried with a departure time anchored at the bike-share
+    arrival, preserving the same time-continuity invariant that
+    ``compose_first_mile`` relies on.
+    """
+    if req.has_luggage:
+        return []
+
+    opts = options or ComposeOptions()
+    candidates: list[Itinerary] = []
+
+    for anchor in anchors[: opts.max_anchors]:
+        first_mile = _bike_share_first_mile(req, anchor, bike_share)
+        if first_mile is None:
+            continue
+
+        transit_req = JourneyRequest(
+            origin=anchor.location,
+            destination=req.destination,
+            departure_time=first_mile.end_time,
+            arrive_by=req.arrive_by,
+            has_luggage=req.has_luggage,
+            has_own_bike=req.has_own_bike,
+            has_own_car=req.has_own_car,
+            max_walking_m=req.max_walking_m,
+            time_weight=req.time_weight,
+            cost_weight=req.cost_weight,
+            effort_weight=req.effort_weight,
+            reliability_weight=req.reliability_weight,
+        )
+
+        transit_itins = transit.plan(transit_req, num_itineraries=opts.per_anchor_transit_count)
+        for transit_itin in transit_itins:
+            if not transit_itin.legs:
+                continue
+            composed = Itinerary(legs=[*first_mile.legs, *transit_itin.legs])
+            candidates.append(composed)
+
+    return candidates
+
+
+def _bike_share_first_mile(
+    req: JourneyRequest,
+    anchor: Anchor,
+    bike_share: BikeShareSource,
+) -> Itinerary | None:
+    """Ask the bike-share source for ``origin → anchor``."""
+    first_mile_req = JourneyRequest(
+        origin=req.origin,
+        destination=anchor.location,
+        departure_time=req.departure_time,
+        has_luggage=req.has_luggage,
+        max_walking_m=req.max_walking_m,
+    )
+    itins = bike_share.plan(first_mile_req, num_itineraries=1)
+    if not itins:
+        return None
+    itin = itins[0]
     if not itin.legs:
         return None
     return itin
