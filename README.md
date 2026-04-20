@@ -58,7 +58,7 @@ Four clean layers:
 git clone https://github.com/KIRTIRAJ4327/polyroute
 cd polyroute
 pip install -e ".[dev,api]"
-pytest                          # 80 unit tests, 5 integration tests skip without OTP2/GBFS
+pytest                          # 88 unit tests, 5 integration tests skip without OTP2/GBFS
 python examples/toronto_airport.py
 ```
 
@@ -99,6 +99,34 @@ docker compose up     # first build takes 3–8 min
 ```
 
 Then point the OTP2 adapter at `http://localhost:8080`.
+
+## Deploy
+
+The repo ships a multi-stage `Dockerfile` for the FastAPI app (separate from the
+OTP2 container under `docker/otp2-toronto/`). The image bundles the `[api]` and
+`[llm]` extras, runs as a non-root user, and exposes port 8000.
+
+```bash
+docker build -t polyroute .
+docker run --rm -p 8000:8000 \
+  -e POLYROUTE_OTP2_URL=http://host.docker.internal:8080 \
+  -e POLYROUTE_GBFS_URL=https://tor.publicbikesystem.net/ube/gbfs/v1/gbfs.json \
+  -e POLYROUTE_DISABLE_FALLBACK=1 \
+  polyroute
+# → http://127.0.0.1:8000/
+```
+
+For a hosted demo (Fly.io, Azure Container Apps, Cloud Run), mount the same env
+vars. Leave `POLYROUTE_DISABLE_FALLBACK` off only when you want the mock data to
+stand in for missing transit — see CLAUDE.md §5 for the fallback semantic.
+
+Provenance comes back two ways in `/plan`:
+
+- **Query-level** `sources[]` — which adapters were wired for this request
+  (`transit`, `rideshare`, `bike_share`, `compose_first_mile`,
+  `compose_bike_share_first_mile`, or `mock_fallback` when the fallback fired).
+- **Per-candidate** `itineraries[].source` — which adapter / strategy produced
+  each specific itinerary, stamped by the Planner.
 
 ## Roadmap
 

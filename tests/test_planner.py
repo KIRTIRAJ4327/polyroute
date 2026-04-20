@@ -159,6 +159,39 @@ def test_fans_out_skips_missing_adapters():
     assert out[0].legs[0].mode == Mode.RIDESHARE
 
 
+def test_candidates_carry_source_provenance():
+    """Every candidate must be stamped with the adapter / strategy that
+    produced it — direct adapters and composed candidates alike."""
+    planner = Planner(
+        transit=FakeTransit(),
+        rideshare=FakeRideshare(),
+        bike_share=FakeBikeShare(),
+        anchors=_two_anchors(),
+        compose_opts=ComposeOptions(per_anchor_transit_count=1, max_anchors=1),
+    )
+    out = planner.plan(_req())
+    by_source: dict[str, int] = {}
+    for it in out:
+        assert it.source is not None, f"untagged itinerary: modes={it.modes_used}"
+        by_source[it.source] = by_source.get(it.source, 0) + 1
+    # One of each direct source + one of each composed strategy
+    assert by_source == {
+        "transit": 1,
+        "rideshare": 1,
+        "bike_share": 1,
+        "compose_first_mile": 1,
+        "compose_bike_share_first_mile": 1,
+    }
+
+
+def test_fallback_candidates_tagged_fallback():
+    marker = _one_leg_itinerary(Mode.WALK, datetime(2026, 4, 22, 6, 0), 90, 0.0)
+    planner = Planner(anchors=[], fallback=lambda _: [marker])
+    out = planner.plan(_req())
+    assert len(out) == 1
+    assert out[0].source == "fallback"
+
+
 def test_fans_out_includes_bike_share_first_mile_when_wired_solo():
     transit = FakeTransit()
     bike_share = FakeBikeShare()

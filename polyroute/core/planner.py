@@ -137,13 +137,17 @@ class Planner:
 
         return candidates
 
-    @staticmethod
-    def _safe(name: str, call: Callable[[], list[Itinerary]]) -> list[Itinerary]:
+    def _safe(self, name: str, call: Callable[[], list[Itinerary]]) -> list[Itinerary]:
+        """Call an adapter, stamp each candidate's ``source``, swallow errors."""
         try:
-            return list(call())
+            out = list(call())
         except Exception as exc:  # pragma: no cover — defensive
             log.warning("planner: %s adapter failed (%s)", name, exc)
             return []
+        for it in out:
+            if it.source is None:
+                it.source = name
+        return out
 
 
 # ---------------------------------------------------------------------------

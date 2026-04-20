@@ -194,6 +194,14 @@ class ItineraryOut(BaseModel):
         "rule-based",
         description="'llm' | 'rule-based-fallback' | 'rule-based'",
     )
+    source: Optional[str] = Field(
+        None,
+        description=(
+            "Which adapter / strategy produced this itinerary: "
+            "'transit', 'rideshare', 'bike_share', 'compose_first_mile', "
+            "'compose_bike_share_first_mile', or 'fallback'."
+        ),
+    )
     total_duration_min: float
     total_cost_cad: float
     num_transfers: int
@@ -291,6 +299,7 @@ def plan(req_in: PlanRequest) -> PlanResponse:
                 summary=summarize_legs(it),
                 explanation=explanation_text,
                 explanation_source=explanation_source,
+                source=it.source,
                 total_duration_min=round(it.total_duration_min, 1),
                 total_cost_cad=round(it.total_cost_cad, 2),
                 num_transfers=it.num_transfers,
@@ -324,11 +333,11 @@ def plan(req_in: PlanRequest) -> PlanResponse:
 
 
 def _describe_sources(planner: Planner, candidate_count: int) -> list[str]:
-    """Report which adapters were wired in. Useful for UI provenance badges.
+    """Report which adapters were wired in for this request.
 
-    Note: this describes wiring, not which adapter *actually* produced
-    each candidate. A planner-level diagnostic struct can come later if
-    a consumer needs per-candidate provenance.
+    This is the query-level provenance — "what was live when we answered"
+    — as opposed to ``ItineraryOut.source`` which reports which adapter
+    produced each specific candidate.
     """
     sources: list[str] = []
     if planner.transit is not None:

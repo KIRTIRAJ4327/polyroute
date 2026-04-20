@@ -278,6 +278,48 @@
     }
     .source-badge.llm { border-color: var(--accent-dim); color: var(--accent-dim); }
     .source-badge.fallback { border-color: var(--muted); color: var(--muted); }
+
+    /* Query-level wiring pills ("which adapters contributed") */
+    .sources {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: -10px 0 22px;
+    }
+    .source-pill {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 3px 8px;
+      border: 1px solid var(--ink);
+      background: var(--paper-warm);
+      color: var(--ink);
+    }
+    .source-pill.fallback {
+      border-color: var(--muted);
+      color: var(--muted);
+      background: transparent;
+      font-style: italic;
+    }
+    .source-pill.live {
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    /* Per-itinerary provenance — which adapter actually produced it */
+    .itin-source {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+    .itin-source code {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--ink);
+    }
     .legs {
       display: flex;
       flex-wrap: wrap;
@@ -466,6 +508,7 @@
         <h2>Recommended routes</h2>
         <div class="results-meta" id="meta">—</div>
       </div>
+      <div class="sources" id="sources"></div>
       <div id="results">
         <div class="empty">Set your origin, destination, and preferences above, then hit <em>Find routes</em>.</div>
       </div>
@@ -543,11 +586,36 @@
       return `<span class="source-badge">${source}</span>`;
     }
 
+    function renderSourcesBar(sources) {
+      const host = $('sources');
+      if (!host) return;
+      if (!sources || !sources.length) {
+        host.innerHTML = '';
+        return;
+      }
+      const label = {
+        transit: 'transit (OTP2)',
+        rideshare: 'rideshare (est.)',
+        bike_share: 'bike share (GBFS)',
+        compose_first_mile: 'compose: ride → transit',
+        compose_bike_share_first_mile: 'compose: bike → transit',
+        mock_fallback: 'mock fallback',
+      };
+      host.innerHTML = sources.map(s => {
+        const cls = s === 'mock_fallback' ? 'fallback'
+                  : (s === 'transit' || s === 'bike_share') ? 'live'
+                  : '';
+        return `<span class="source-pill ${cls}" title="${s}">${label[s] || s}</span>`;
+      }).join('');
+    }
+
     function render(data) {
       const meta = $('meta');
       meta.textContent =
         `${data.candidates_generated} considered · ` +
         `${data.pareto_optimal} on Pareto frontier`;
+
+      renderSourcesBar(data.sources);
 
       const root = $('results');
       if (!data.itineraries.length) {
@@ -568,6 +636,7 @@
                 </span>
               `).join('')}
             </div>
+            ${it.source ? `<div class="itin-source">via <code>${it.source}</code></div>` : ''}
           </div>
           <div class="stats">
             <div>
