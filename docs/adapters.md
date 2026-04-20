@@ -14,7 +14,7 @@ An adapter **does not**:
 - Score itineraries (`polyroute/core/pareto.py` owns that).
 - Explain tradeoffs (`polyroute/llm/explainer.py` owns that).
 - Know about other adapters — composition happens in
-  `polyroute/core/compose.py` (once [#5](https://github.com/KIRTIRAJ4327/polyroute/issues/5) lands).
+  `polyroute/core/compose.py`.
 - Make decisions about user preference weights.
 
 If you find yourself importing another adapter, you're in the wrong
